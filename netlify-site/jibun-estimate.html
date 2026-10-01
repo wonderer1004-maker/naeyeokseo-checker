@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>지번 기반 개략공사비 산출</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f7f8fa; --card: #ffffff; --text: #1a1d23; --muted: #6b7280;
+    --accent: #2563eb; --border: #e5e7eb; --error-bg: #ffc7ce; --error-text: #9c0006;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115; --card: #171a21; --text: #e8eaed; --muted: #9aa0a6;
+      --accent: #60a5fa; --border: #2a2e37; --error-bg: #4a1f24; --error-text: #ffb4ba;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1115; --card: #171a21; --text: #e8eaed; --muted: #9aa0a6;
+    --accent: #60a5fa; --border: #2a2e37; --error-bg: #4a1f24; --error-text: #ffb4ba;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+    padding: 16px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  nav { margin-bottom: 16px; font-size: 0.9rem; }
+  nav a { color: var(--accent); text-decoration: none; margin-right: 14px; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  h2 { font-size: 1.1rem; margin: 0 0 14px; }
+  .sub { color: var(--muted); margin-bottom: 20px; font-size: 0.95rem; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin: 12px 0 4px; }
+  input[type=text], input[type=number], select {
+    width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-size: 0.95rem;
+  }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 160px; }
+  .btn {
+    display: inline-block; background: var(--accent); color: #fff; border: none;
+    border-radius: 8px; padding: 10px 18px; font-size: 0.95rem; cursor: pointer; margin-top: 16px;
+  }
+  .btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .metrics { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+  .metric { flex: 1; min-width: 140px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .metric .label { color: var(--muted); font-size: 0.85rem; margin-bottom: 6px; }
+  .metric .value { font-size: 1.3rem; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+  th { color: var(--muted); font-weight: 600; }
+  tfoot td { font-weight: 700; border-top: 2px solid var(--border); }
+  .note { font-size: 0.82rem; color: var(--muted); margin-top: 8px; }
+  .warn { background: var(--error-bg); color: var(--error-text); padding: 10px 14px; border-radius: 8px; margin: 12px 0; font-size: 0.9rem; }
+  .coord-box { font-size: 0.85rem; color: var(--muted); margin-top: 8px; min-height: 20px; }
+  details summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav><a href="index.html">← 내역서 검토 도구</a></nav>
+  <h1>🗺️ 지번 기반 개략공사비 산출 (프로토타입)</h1>
+  <p class="sub">면적·용도지역·경사도를 입력하면 토목/전기/태양광 공종별 개략공사비를 자동 계산합니다. 모든 계산은 브라우저에서만 이루어집니다.</p>
+
+  <div class="card">
+    <h2>1. 부지 정보</h2>
+
+    <label>지번 주소 (선택 — 좌표 참고용 베타 조회)</label>
+    <input type="text" id="address" placeholder="예: 경기도 OO시 OO면 123-4" />
+    <div class="row">
+      <div>
+        <button class="btn secondary" id="geocodeBtn" type="button">좌표 조회(베타)</button>
+      </div>
+    </div>
+    <div class="coord-box" id="coordResult"></div>
+    <details>
+      <summary>브이월드 API 키 설정 (좌표 조회에만 사용, 저장은 이 브라우저에만)</summary>
+      <label>VWorld API 키</label>
+      <input type="text" id="vworldKey" placeholder="발급받은 API 키 입력" />
+      <p class="note">무료 발급: www.vworld.kr → 오픈API 신청. 용도지역·지목 자동조회는 추가 연동이 필요해 이번 버전은 좌표만 참고용으로 제공합니다. 정확한 면적·용도지역은 아래에 직접 입력해주세요.</p>
+    </details>
+
+    <div class="row">
+      <div>
+        <label>대지 면적 (㎡)</label>
+        <input type="number" id="area" value="3000" min="0" />
+      </div>
+      <div>
+        <label>평균 경사도 (%)</label>
+        <input type="number" id="slope" value="8" min="0" />
+      </div>
+      <div>
+        <label>용도지역</label>
+        <select id="landuse">
+          <option value="1.0">계획관리지역 (가중치 1.0)</option>
+          <option value="0.9">생산관리지역 (가중치 0.9)</option>
+          <option value="0.7">농림지역 (가중치 0.7)</option>
+          <option value="1.0">공장용지 (가중치 1.0)</option>
+          <option value="0.6">보전관리지역 (가중치 0.6)</option>
+        </select>
+      </div>
+    </div>
+
+    <label>가용부지 비율 (기본 0.6 — 진입로·이격거리 등 제외분)</label>
+    <input type="number" id="usableRatio" value="0.6" min="0.1" max="1" step="0.05" />
+
+    <button class="btn" id="calcBtn" type="button">개략공사비 산출</button>
+  </div>
+
+  <div id="result" style="display:none;">
+    <div class="metrics">
+      <div class="metric"><div class="label">예상 태양광 설치용량</div><div class="value" id="mCapacity">-</div></div>
+      <div class="metric"><div class="label">개략 절·성토량</div><div class="value" id="mEarthwork">-</div></div>
+      <div class="metric"><div class="label">총 개략공사비</div><div class="value" id="mTotal">-</div></div>
+    </div>
+
+    <div class="card">
+      <h2>2. 공종별 개략단가 (필요시 수정 가능)</h2>
+      <div class="row">
+        <div><label>토목 부지조성 (원/㎡)</label><input type="number" id="c_civil_site" value="45000" /></div>
+        <div><label>토목 옹벽 (원/㎡, 가정 비율 5%)</label><input type="number" id="c_civil_wall" value="350000" /></div>
+      </div>
+      <div class="row">
+        <div><label>전기 수배전설비 (원/kW)</label><input type="number" id="c_elec_main" value="150000" /></div>
+        <div><label>전기 배선공사 (원/kW)</label><input type="number" id="c_elec_wire" value="80000" /></div>
+      </div>
+      <div class="row">
+        <div><label>태양광 모듈·구조물 (원/kW)</label><input type="number" id="c_solar_module" value="950000" /></div>
+        <div><label>태양광 인버터 등 BOS (원/kW)</label><input type="number" id="c_solar_bos" value="200000" /></div>
+      </div>
+      <button class="btn secondary" id="recalcBtn" type="button">단가 반영해서 다시 계산</button>
+    </div>
+
+    <div class="card">
+      <h2>3. 개략공사비 산출 결과</h2>
+      <table id="resultTable"></table>
+    </div>
+
+    <button class="btn" id="downloadBtn" type="button">개략공사비 산출서 다운로드 (.xlsx)</button>
+    <p class="note">이 결과는 면적·용도지역·경사도 기반의 개략 추정치이며, 실시설계·정밀 물량산출을 대체하지 않습니다. 실제 발주·계약 전 반드시 상세 내역서 검토가 필요합니다.</p>
+  </div>
+</div>
+
+<script>
+const addressInput = document.getElementById('address');
+const vworldKeyInput = document.getElementById('vworldKey');
+const coordResult = document.getElementById('coordResult');
+
+// 저장된 API 키 불러오기
+try {
+  const saved = localStorage.getItem('vworldKey');
+  if (saved) vworldKeyInput.value = saved;
+} catch (e) {}
+
+document.getElementById('geocodeBtn').addEventListener('click', () => {
+  const key = vworldKeyInput.value.trim();
+  const address = addressInput.value.trim();
+  if (!key) {
+    coordResult.innerHTML = '<span style="color:var(--error-text)">API 키를 먼저 입력해주세요.</span>';
+    return;
+  }
+  if (!address) {
+    coordResult.innerHTML = '<span style="color:var(--error-text)">지번 주소를 입력해주세요.</span>';
+    return;
+  }
+  try { localStorage.setItem('vworldKey', key); } catch (e) {}
+
+  coordResult.textContent = '조회 중...';
+
+  const callbackName = 'vworldCallback_' + Date.now();
+  window[callbackName] = function (res) {
+    try {
+      const point = res.response.result.point;
+      coordResult.innerHTML = '좌표 조회 결과: X ' + point.x + ' / Y ' + point.y +
+        ' <span class="note">(용도지역·지목은 직접 확인 후 아래에 입력해주세요)</span>';
+    } catch (e) {
+      coordResult.innerHTML = '<span style="color:var(--error-text)">좌표를 찾을 수 없습니다. 지번 표기를 확인해주세요.</span>';
+    }
+    delete window[callbackName];
+    script.remove();
+  };
+
+  const script = document.createElement('script');
+  const params = new URLSearchParams({
+    service: 'address', request: 'getcoord', address: address,
+    type: 'PARCEL', key: key, callback: callbackName, crs: 'epsg:4326'
+  });
+  script.src = 'https://api.vworld.kr/req/address?' + params.toString();
+  script.onerror = () => {
+    coordResult.innerHTML = '<span style="color:var(--error-text)">조회 실패. API 키 또는 네트워크를 확인해주세요.</span>';
+  };
+  document.body.appendChild(script);
+});
+
+function getInputs() {
+  return {
+    area: Number(document.getElementById('area').value) || 0,
+    slope: Number(document.getElementById('slope').value) || 0,
+    landuseFactor: Number(document.getElementById('landuse').value) || 1,
+    usableRatio: Number(document.getElementById('usableRatio').value) || 0.6,
+  };
+}
+
+function getUnitCosts() {
+  return {
+    civil_site: Number(document.getElementById('c_civil_site').value) || 0,
+    civil_wall: Number(document.getElementById('c_civil_wall').value) || 0,
+    elec_main: Number(document.getElementById('c_elec_main').value) || 0,
+    elec_wire: Number(document.getElementById('c_elec_wire').value) || 0,
+    solar_module: Number(document.getElementById('c_solar_module').value) || 0,
+    solar_bos: Number(document.getElementById('c_solar_bos').value) || 0,
+  };
+}
+
+let lastRows = null;
+
+function calculate() {
+  const { area, slope, landuseFactor, usableRatio } = getInputs();
+  let ratio = usableRatio * landuseFactor;
+  if (slope > 15) ratio *= 0.7;
+  const usableArea = area * ratio;
+  const capacityKw = Math.round((usableArea / 6.5) * 10) / 10;
+  const earthworkM3 = Math.round(area * slope * 0.05 * 10) / 10;
+  const wallArea = Math.round(area * 0.05);
+
+  const cost = getUnitCosts();
+  const rows = [
+    { 공종: '토목', 항목: '부지조성공사', 수량: area, 단위: '㎡', 단가: cost.civil_site, 금액: area * cost.civil_site },
+    { 공종: '토목', 항목: '옹벽공사(개략 5% 가정)', 수량: wallArea, 단위: '㎡', 단가: cost.civil_wall, 금액: wallArea * cost.civil_wall },
+    { 공종: '전기', 항목: '수배전설비', 수량: capacityKw, 단위: 'kW', 단가: cost.elec_main, 금액: capacityKw * cost.elec_main },
+    { 공종: '전기', 항목: '배선공사', 수량: capacityKw, 단위: 'kW', 단가: cost.elec_wire, 금액: capacityKw * cost.elec_wire },
+    { 공종: '태양광', 항목: '모듈 및 구조물', 수량: capacityKw, 단위: 'kW', 단가: cost.solar_module, 금액: capacityKw * cost.solar_module },
+    { 공종: '태양광', 항목: '인버터 등 BOS', 수량: capacityKw, 단위: 'kW', 단가: cost.solar_bos, 금액: capacityKw * cost.solar_bos },
+  ];
+
+  const total = rows.reduce((s, r) => s + r.금액, 0);
+  lastRows = rows;
+
+  document.getElementById('mCapacity').textContent = fmt(capacityKw) + ' kW';
+  document.getElementById('mEarthwork').textContent = fmt(earthworkM3) + ' ㎥';
+  document.getElementById('mTotal').textContent = fmt(Math.round(total)) + ' 원';
+
+  renderTable(rows, total);
+  document.getElementById('result').style.display = 'block';
+}
+
+function fmt(n) {
+  return Number(n).toLocaleString('ko-KR', { maximumFractionDigits: 1 });
+}
+
+function renderTable(rows, total) {
+  let html = '<thead><tr><th>공종</th><th>항목</th><th>수량</th><th>단위</th><th>단가(원)</th><th>금액(원)</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    html += '<tr><td>' + r.공종 + '</td><td>' + r.항목 + '</td><td>' + fmt(r.수량) + '</td><td>' + r.단위 +
+      '</td><td>' + fmt(r.단가) + '</td><td>' + fmt(Math.round(r.금액)) + '</td></tr>';
+  });
+  html += '</tbody><tfoot><tr><td colspan="5">합계</td><td>' + fmt(Math.round(total)) + '</td></tr></tfoot>';
+  document.getElementById('resultTable').innerHTML = html;
+}
+
+document.getElementById('calcBtn').addEventListener('click', calculate);
+document.getElementById('recalcBtn').addEventListener('click', calculate);
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  if (!lastRows) return;
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(lastRows);
+  XLSX.utils.book_append_sheet(wb, ws, '개략공사비산출서');
+  XLSX.writeFile(wb, '개략공사비_산출서.xlsx');
+});
+</script>
+</body>
+</html>
