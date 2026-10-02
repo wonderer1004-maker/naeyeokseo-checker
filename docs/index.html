@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>내역서 물량산출 자동화</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --card: #ffffff;
+    --text: #1a1d23;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --border: #e5e7eb;
+    --error-bg: #ffc7ce;
+    --error-text: #9c0006;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115;
+      --card: #171a21;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --accent: #60a5fa;
+      --border: #2a2e37;
+      --error-bg: #4a1f24;
+      --error-text: #ffb4ba;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1115;
+    --card: #171a21;
+    --text: #e8eaed;
+    --muted: #9aa0a6;
+    --accent: #60a5fa;
+    --border: #2a2e37;
+    --error-bg: #4a1f24;
+    --error-text: #ffb4ba;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+    padding: 16px;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .sub { color: var(--muted); margin-bottom: 20px; font-size: 0.95rem; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 36px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--accent); }
+  .dropzone input { display: none; }
+  .btn {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .metrics { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+  .metric {
+    flex: 1;
+    min-width: 140px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .metric .label { color: var(--muted); font-size: 0.85rem; margin-bottom: 6px; }
+  .metric .value { font-size: 1.4rem; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  tr.error-row td { background: var(--error-bg); color: var(--error-text); }
+  .table-scroll { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+  .warn { background: var(--error-bg); color: var(--error-text); padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 0.9rem; }
+  .info { color: var(--muted); font-size: 0.9rem; }
+  .config-note { font-size: 0.82rem; color: var(--muted); margin-top: 8px; }
+  h2 { font-size: 1.1rem; margin: 0 0 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav style="margin-bottom:16px;font-size:0.9rem;"><a href="jibun-estimate.html" style="color:var(--accent);text-decoration:none;">지번 기반 개략공사비 산출 (프로토타입) →</a></nav>
+  <h1>📋 내역서 물량산출 자동화</h1>
+  <p class="sub">내역서 엑셀 파일을 업로드하면 공종별 집계와 금액 오류를 브라우저에서 바로 검토합니다. 파일은 서버로 전송되지 않습니다.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone">
+      <p>내역서 엑셀 파일(.xlsx)을 여기로 끌어다 놓거나 클릭해서 선택하세요</p>
+      <input type="file" id="fileInput" accept=".xlsx" />
+    </div>
+    <p class="config-note">컬럼 구조: 공종 / 품명 / 규격 / 단위 / 수량 / 재료비단가 / 노무비단가 / 경비단가 / 합계단가 / 금액</p>
+  </div>
+
+  <div id="result" style="display:none;">
+    <div class="metrics">
+      <div class="metric"><div class="label">전체 항목 수</div><div class="value" id="mTotal">-</div></div>
+      <div class="metric"><div class="label">오류 항목 수</div><div class="value" id="mError">-</div></div>
+      <div class="metric"><div class="label">총 금액</div><div class="value" id="mAmount">-</div></div>
+    </div>
+
+    <div id="warnBox"></div>
+
+    <div class="card">
+      <h2>공종별 집계</h2>
+      <div class="table-scroll"><table id="summaryTable"></table></div>
+    </div>
+
+    <div class="card">
+      <h2>전체 항목 검토</h2>
+      <div class="table-scroll"><table id="detailTable"></table></div>
+    </div>
+
+    <button class="btn" id="downloadBtn">검토결과 리포트 다운로드 (.xlsx)</button>
+  </div>
+
+  <div id="errorBox"></div>
+</div>
+
+<script>
+const COLUMN_ALIASES = {
+  "공종": "공종", "품명": "품명", "규격": "규격", "단위": "단위", "수량": "수량",
+  "재료비단가": "재료비단가", "노무비단가": "노무비단가", "경비단가": "경비단가",
+  "합계단가": "합계단가", "금액": "금액"
+};
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const resultEl = document.getElementById('result');
+const errorBox = document.getElementById('errorBox');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', (e) => {
+  if (e.target.files.length) handleFile(e.target.files[0]);
+});
+
+let lastRows = null;
+let lastSummary = null;
+
+function handleFile(file) {
+  errorBox.innerHTML = '';
+  resultEl.style.display = 'none';
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+      processRows(rows);
+    } catch (err) {
+      showError('파일 처리 중 오류가 발생했습니다: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function showError(msg) {
+  errorBox.innerHTML = '<div class="warn">' + msg + '</div>';
+}
+
+function processRows(rawRows) {
+  const required = Object.keys(COLUMN_ALIASES);
+  const rows = rawRows
+    .filter(r => r['품명'] !== null && r['품명'] !== undefined && r['품명'] !== '')
+    .map(r => {
+      const row = {};
+      required.forEach(k => { row[k] = r[k] !== undefined ? r[k] : null; });
+      const 수량 = Number(row['수량']) || 0;
+      const 합계단가 = Number(row['합계단가']) || 0;
+      const 금액 = Number(row['금액']) || 0;
+      row['수량'] = 수량;
+      row['합계단가'] = 합계단가;
+      row['금액'] = 금액;
+      row['계산금액'] = 수량 * 합계단가;
+      row['오류여부'] = Math.abs(row['계산금액'] - 금액) > 1;
+      return row;
+    });
+
+  if (rows.length === 0) {
+    showError('품명 컬럼을 찾을 수 없거나 데이터가 없습니다. 컬럼명을 확인해주세요 (공종, 품명, 규격, 단위, 수량, 재료비단가, 노무비단가, 경비단가, 합계단가, 금액).');
+    return;
+  }
+
+  const byGongjong = {};
+  rows.forEach(r => {
+    const key = r['공종'] || '(미지정)';
+    if (!byGongjong[key]) byGongjong[key] = { 공종: key, 항목수: 0, 총수량: 0, 총금액: 0 };
+    byGongjong[key].항목수 += 1;
+    byGongjong[key].총수량 += r['수량'];
+    byGongjong[key].총금액 += r['금액'];
+  });
+  const totalAmount = rows.reduce((s, r) => s + r['금액'], 0);
+  const summary = Object.values(byGongjong).map(s => ({
+    ...s,
+    '금액비중(%)': totalAmount ? Math.round((s.총금액 / totalAmount) * 10000) / 100 : 0
+  })).sort((a, b) => b.총금액 - a.총금액);
+
+  lastRows = rows;
+  lastSummary = summary;
+  renderResult(rows, summary, totalAmount);
+}
+
+function fmt(n) {
+  return Number(n).toLocaleString('ko-KR', { maximumFractionDigits: 2 });
+}
+
+function renderResult(rows, summary, totalAmount) {
+  const errorCount = rows.filter(r => r['오류여부']).length;
+
+  document.getElementById('mTotal').textContent = fmt(rows.length) + '개';
+  document.getElementById('mError').textContent = fmt(errorCount) + '개';
+  document.getElementById('mAmount').textContent = fmt(totalAmount) + '원';
+
+  const warnBox = document.getElementById('warnBox');
+  warnBox.innerHTML = errorCount > 0
+    ? '<div class="warn">금액 계산 오류가 ' + errorCount + '건 발견되었습니다. 아래 표에서 확인하세요.</div>'
+    : '';
+
+  const sumCols = ['공종', '항목수', '총수량', '총금액', '금액비중(%)'];
+  document.getElementById('summaryTable').innerHTML = buildTable(summary, sumCols);
+
+  const detailCols = ['공종', '품명', '규격', '단위', '수량', '재료비단가', '노무비단가', '경비단가', '합계단가', '금액', '계산금액', '오류여부'];
+  document.getElementById('detailTable').innerHTML = buildTable(rows, detailCols, true);
+
+  resultEl.style.display = 'block';
+}
+
+function buildTable(data, cols, markErrors) {
+  let html = '<thead><tr>' + cols.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>';
+  data.forEach(row => {
+    const isError = markErrors && row['오류여부'];
+    html += '<tr' + (isError ? ' class="error-row"' : '') + '>';
+    cols.forEach(c => {
+      let v = row[c];
+      if (typeof v === 'number') v = fmt(v);
+      if (typeof v === 'boolean') v = v ? '오류' : '';
+      html += '<td>' + (v === null || v === undefined ? '' : v) + '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  return html;
+}
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  if (!lastRows) return;
+  const wb = XLSX.utils.book_new();
+  const wsSummary = XLSX.utils.json_to_sheet(lastSummary);
+  const wsDetail = XLSX.utils.json_to_sheet(lastRows);
+  XLSX.utils.book_append_sheet(wb, wsSummary, '공종별집계');
+  XLSX.utils.book_append_sheet(wb, wsDetail, '전체검토');
+  XLSX.writeFile(wb, '검토결과_리포트.xlsx');
+});
+</script>
+</body>
+</html>
