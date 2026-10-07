@@ -185,7 +185,7 @@ function handleFile(file) {
 }
 
 function showError(msg) {
-  errorBox.innerHTML = '<div class="warn">' + msg + '</div>';
+  errorBox.textContent = msg; errorBox.className = 'warn';
 }
 
 function processRows(rawRows) {
@@ -195,9 +195,10 @@ function processRows(rawRows) {
     .map(r => {
       const row = {};
       required.forEach(k => { row[k] = r[k] !== undefined ? r[k] : null; });
-      const 수량 = Number(row['수량']) || 0;
-      const 합계단가 = Number(row['합계단가']) || 0;
-      const 금액 = Number(row['금액']) || 0;
+      const parseNumber = (v) => { if(v===null || String(v).trim()==='') throw new Error('수량·합계단가·금액의 빈 값을 확인하세요.'); const n=Number(String(v).replace(/,/g,'')); if(!Number.isFinite(n)) throw new Error('숫자 형식을 확인하세요.'); return n; };
+      const 수량 = parseNumber(row['수량']);
+      const 합계단가 = parseNumber(row['합계단가']);
+      const 금액 = parseNumber(row['금액']);
       row['수량'] = 수량;
       row['합계단가'] = 합계단가;
       row['금액'] = 금액;
@@ -211,10 +212,12 @@ function processRows(rawRows) {
     return;
   }
 
-  const byGongjong = {};
+  const byGongjong = Object.create(null);
   rows.forEach(r => {
-    const key = r['공종'] || '(미지정)';
-    if (!byGongjong[key]) byGongjong[key] = { 공종: key, 항목수: 0, 총수량: 0, 총금액: 0 };
+    const gongjong = r['공종'] || '(미지정)';
+    const unit = r['단위'] || '(미지정)';
+    const key = JSON.stringify([gongjong,unit]);
+    if (!byGongjong[key]) byGongjong[key] = { 공종: gongjong, 단위: unit, 항목수: 0, 총수량: 0, 총금액: 0 };
     byGongjong[key].항목수 += 1;
     byGongjong[key].총수량 += r['수량'];
     byGongjong[key].총금액 += r['금액'];
@@ -246,7 +249,7 @@ function renderResult(rows, summary, totalAmount) {
     ? '<div class="warn">금액 계산 오류가 ' + errorCount + '건 발견되었습니다. 아래 표에서 확인하세요.</div>'
     : '';
 
-  const sumCols = ['공종', '항목수', '총수량', '총금액', '금액비중(%)'];
+  const sumCols = ['공종', '단위', '항목수', '총수량', '총금액', '금액비중(%)'];
   document.getElementById('summaryTable').innerHTML = buildTable(summary, sumCols);
 
   const detailCols = ['공종', '품명', '규격', '단위', '수량', '재료비단가', '노무비단가', '경비단가', '합계단가', '금액', '계산금액', '오류여부'];
@@ -254,6 +257,8 @@ function renderResult(rows, summary, totalAmount) {
 
   resultEl.style.display = 'block';
 }
+
+function escapeHtml(v) {return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 function buildTable(data, cols, markErrors) {
   let html = '<thead><tr>' + cols.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>';
@@ -264,7 +269,7 @@ function buildTable(data, cols, markErrors) {
       let v = row[c];
       if (typeof v === 'number') v = fmt(v);
       if (typeof v === 'boolean') v = v ? '오류' : '';
-      html += '<td>' + (v === null || v === undefined ? '' : v) + '</td>';
+      html += '<td>' + (v === null || v === undefined ? '' : escapeHtml(v)) + '</td>';
     });
     html += '</tr>';
   });

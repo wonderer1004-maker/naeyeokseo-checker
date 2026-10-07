@@ -58,13 +58,16 @@
   .warn { background: var(--error-bg); color: var(--error-text); padding: 10px 14px; border-radius: 8px; margin: 12px 0; font-size: 0.9rem; }
   .coord-box { font-size: 0.85rem; color: var(--muted); margin-top: 8px; min-height: 20px; }
   details summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; margin-top: 10px; }
+
+.table-scroll {overflow-x:auto} svg {width:100%;height:300px;background:#fff;border:1px solid var(--border)}
+@media print {body{background:white;color:black;padding:0}nav,.btn,details,.no-print{display:none!important}.card,.metric{break-inside:avoid;padding:10px;margin-bottom:10px}#result{display:block!important}svg{height:220px}input,select{border:0;background:white;color:black}h1{font-size:18px}@page{size:A4;margin:12mm}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <nav><a href="index.html">← 내역서 검토 도구</a></nav>
   <h1>🗺️ 지번 기반 개략공사비 산출 (프로토타입)</h1>
-  <p class="sub">면적·용도지역·경사도를 입력하면 토목/전기/태양광 공종별 개략공사비를 자동 계산합니다. 모든 계산은 브라우저에서만 이루어집니다.</p>
+  <p class="sub">면적·설계 가정을 입력하면 토목/전기/태양광 공종별 개략공사비를 자동 계산합니다. 모든 계산은 브라우저에서만 이루어집니다.</p>
 
   <div class="card">
     <h2>1. 부지 정보</h2>
@@ -78,9 +81,9 @@
     </div>
     <div class="coord-box" id="coordResult"></div>
     <details>
-      <summary>브이월드 API 키 설정 (좌표 조회에만 사용, 저장은 이 브라우저에만)</summary>
+      <summary>브이월드 API 키 설정 (좌표 조회에만 사용, 현재 화면에서만 사용)</summary>
       <label>VWorld API 키</label>
-      <input type="text" id="vworldKey" placeholder="발급받은 API 키 입력" />
+      <input type="password" id="vworldKey" autocomplete="off" placeholder="발급받은 API 키 입력" />
       <p class="note">무료 발급: www.vworld.kr → 오픈API 신청. 용도지역·지목 자동조회는 추가 연동이 필요해 이번 버전은 좌표만 참고용으로 제공합니다. 정확한 면적·용도지역은 아래에 직접 입력해주세요.</p>
     </details>
 
@@ -94,12 +97,12 @@
         <input type="number" id="slope" value="8" min="0" />
       </div>
       <div>
-        <label>용도지역</label>
+        <label>용도지역 참고 구분 (가중치는 예시 가정이며 허가 가능성을 판정하지 않음)</label>
         <select id="landuse">
           <option value="1.0">계획관리지역 (가중치 1.0)</option>
           <option value="0.9">생산관리지역 (가중치 0.9)</option>
           <option value="0.7">농림지역 (가중치 0.7)</option>
-          <option value="1.0">공장용지 (가중치 1.0)</option>
+          <option value="1.0">기타 (가중치 1.0)</option>
           <option value="0.6">보전관리지역 (가중치 0.6)</option>
         </select>
       </div>
@@ -108,6 +111,13 @@
     <label>가용부지 비율 (기본 0.6 — 진입로·이격거리 등 제외분)</label>
     <input type="number" id="usableRatio" value="0.6" min="0.1" max="1" step="0.05" />
 
+    <div class="row">
+      <div><label for="depth">평균 토공 깊이 (m, 직접 가정)</label><input type="number" id="depth" value="0.4" min="0" step="0.1"></div>
+      <div><label for="wall">옹벽 전면 면적 (㎡, 길이×높이)</label><input type="number" id="wall" value="150" min="0"></div>
+      <div><label for="reserve">예비비 (%)</label><input type="number" id="reserve" value="10" min="0" max="100"></div>
+    </div>
+    <p class="note">현재는 수동 입력 기반입니다. 1:1000 지형도·필지경계·DEM 분석은 연결되지 않았습니다. 경사도만으로 토공량을 확정할 수 없어 평균 깊이를 별도로 입력합니다. 기본 단가는 검증된 시세가 아닌 편집 가능한 예시입니다.</p>
+    <div id="inputError" role="alert"></div>
     <button class="btn" id="calcBtn" type="button">개략공사비 산출</button>
   </div>
 
@@ -122,7 +132,7 @@
       <h2>2. 공종별 개략단가 (필요시 수정 가능)</h2>
       <div class="row">
         <div><label>토목 부지조성 (원/㎡)</label><input type="number" id="c_civil_site" value="45000" /></div>
-        <div><label>토목 옹벽 (원/㎡, 가정 비율 5%)</label><input type="number" id="c_civil_wall" value="350000" /></div>
+        <div><label>토목 옹벽 (원/㎡)</label><input type="number" id="c_civil_wall" value="350000" /></div>
       </div>
       <div class="row">
         <div><label>전기 수배전설비 (원/kW)</label><input type="number" id="c_elec_main" value="150000" /></div>
@@ -137,9 +147,13 @@
 
     <div class="card">
       <h2>3. 개략공사비 산출 결과</h2>
-      <table id="resultTable"></table>
+      <div class="table-scroll"><table id="resultTable"></table></div><p id="budgetSummary"></p>
     </div>
 
+    <div class="card"><h2>4. 개념 배치도</h2><p class="note">면적과 같은 정사각형을 가정한 도식입니다. 실제 지적 경계·접도·음영·이격 검토를 반영한 설계도가 아닙니다. DXF 단위는 m이며 지역 좌표를 사용합니다.</p><div id="layout"></div></div>
+    <button class="btn secondary" id="printBtn" type="button">인쇄 / PDF 저장</button>
+    <button class="btn secondary" id="dxfBtn" type="button">개념 배치도 DXF</button>
+    <button class="btn secondary" id="svgBtn" type="button">배치도 SVG</button>
     <button class="btn" id="downloadBtn" type="button">개략공사비 산출서 다운로드 (.xlsx)</button>
     <p class="note">이 결과는 면적·용도지역·경사도 기반의 개략 추정치이며, 실시설계·정밀 물량산출을 대체하지 않습니다. 실제 발주·계약 전 반드시 상세 내역서 검토가 필요합니다.</p>
   </div>
@@ -150,11 +164,7 @@ const addressInput = document.getElementById('address');
 const vworldKeyInput = document.getElementById('vworldKey');
 const coordResult = document.getElementById('coordResult');
 
-// 저장된 API 키 불러오기
-try {
-  const saved = localStorage.getItem('vworldKey');
-  if (saved) vworldKeyInput.value = saved;
-} catch (e) {}
+try { localStorage.removeItem('vworldKey'); } catch (e) {}
 
 document.getElementById('geocodeBtn').addEventListener('click', () => {
   const key = vworldKeyInput.value.trim();
@@ -167,7 +177,7 @@ document.getElementById('geocodeBtn').addEventListener('click', () => {
     coordResult.innerHTML = '<span style="color:var(--error-text)">지번 주소를 입력해주세요.</span>';
     return;
   }
-  try { localStorage.setItem('vworldKey', key); } catch (e) {}
+
 
   coordResult.textContent = '조회 중...';
 
@@ -175,13 +185,11 @@ document.getElementById('geocodeBtn').addEventListener('click', () => {
   window[callbackName] = function (res) {
     try {
       const point = res.response.result.point;
-      coordResult.innerHTML = '좌표 조회 결과: X ' + point.x + ' / Y ' + point.y +
-        ' <span class="note">(용도지역·지목은 직접 확인 후 아래에 입력해주세요)</span>';
+      coordResult.textContent = '좌표 조회 결과: X ' + point.x + ' / Y ' + point.y + ' (면적·용도지역·경사도는 별도 확인 필요)';
     } catch (e) {
       coordResult.innerHTML = '<span style="color:var(--error-text)">좌표를 찾을 수 없습니다. 지번 표기를 확인해주세요.</span>';
     }
-    delete window[callbackName];
-    script.remove();
+    cleanup();
   };
 
   const script = document.createElement('script');
@@ -190,9 +198,9 @@ document.getElementById('geocodeBtn').addEventListener('click', () => {
     type: 'PARCEL', key: key, callback: callbackName, crs: 'epsg:4326'
   });
   script.src = 'https://api.vworld.kr/req/address?' + params.toString();
-  script.onerror = () => {
-    coordResult.innerHTML = '<span style="color:var(--error-text)">조회 실패. API 키 또는 네트워크를 확인해주세요.</span>';
-  };
+  const timeout = setTimeout(() => {coordResult.textContent = '조회 시간이 초과되었습니다. 키와 허용 도메인을 확인해주세요.'; cleanup();}, 15000);
+  function cleanup() {clearTimeout(timeout); delete window[callbackName]; script.remove();}
+  script.onerror = () => {coordResult.textContent = '조회 실패. API 키 또는 네트워크를 확인해주세요.'; cleanup();};
   document.body.appendChild(script);
 });
 
@@ -201,7 +209,7 @@ function getInputs() {
     area: Number(document.getElementById('area').value) || 0,
     slope: Number(document.getElementById('slope').value) || 0,
     landuseFactor: Number(document.getElementById('landuse').value) || 1,
-    usableRatio: Number(document.getElementById('usableRatio').value) || 0.6,
+    usableRatio: Number(document.getElementById('usableRatio').value),
   };
 }
 
@@ -217,20 +225,33 @@ function getUnitCosts() {
 }
 
 let lastRows = null;
+let lastSnapshot = null;
+let lastLayout = null;
 
 function calculate() {
   const { area, slope, landuseFactor, usableRatio } = getInputs();
+  const depth = Number(document.getElementById('depth').value);
+  const wallArea = Number(document.getElementById('wall').value);
+  const reserve = Number(document.getElementById('reserve').value);
+  const values = [...document.querySelectorAll('input[type=number]')];
+  const invalid = values.some(el => el.value.trim() === '' || !Number.isFinite(Number(el.value)) || Number(el.value)<0);
+  const error = document.getElementById('inputError');
+  if (invalid || area<=0 || usableRatio<=0 || usableRatio>1 || reserve>100) {
+    error.textContent='면적은 0보다 크게, 가용비율은 0 초과 1 이하로 입력하세요. 수량·단가는 음수가 될 수 없고 예비비는 0~100%입니다.';
+    document.getElementById('result').style.display='none'; lastRows=null; return;
+  }
+  error.textContent='';
   let ratio = usableRatio * landuseFactor;
   if (slope > 15) ratio *= 0.7;
   const usableArea = area * ratio;
   const capacityKw = Math.round((usableArea / 6.5) * 10) / 10;
-  const earthworkM3 = Math.round(area * slope * 0.05 * 10) / 10;
-  const wallArea = Math.round(area * 0.05);
+  const earthworkM3 = Math.round(area * depth * 10) / 10;
+
 
   const cost = getUnitCosts();
   const rows = [
     { 공종: '토목', 항목: '부지조성공사', 수량: area, 단위: '㎡', 단가: cost.civil_site, 금액: area * cost.civil_site },
-    { 공종: '토목', 항목: '옹벽공사(개략 5% 가정)', 수량: wallArea, 단위: '㎡', 단가: cost.civil_wall, 금액: wallArea * cost.civil_wall },
+    { 공종: '토목', 항목: '옹벽공사(입력 면적)', 수량: wallArea, 단위: '㎡', 단가: cost.civil_wall, 금액: wallArea * cost.civil_wall },
     { 공종: '전기', 항목: '수배전설비', 수량: capacityKw, 단위: 'kW', 단가: cost.elec_main, 금액: capacityKw * cost.elec_main },
     { 공종: '전기', 항목: '배선공사', 수량: capacityKw, 단위: 'kW', 단가: cost.elec_wire, 금액: capacityKw * cost.elec_wire },
     { 공종: '태양광', 항목: '모듈 및 구조물', 수량: capacityKw, 단위: 'kW', 단가: cost.solar_module, 금액: capacityKw * cost.solar_module },
@@ -238,11 +259,20 @@ function calculate() {
   ];
 
   const total = rows.reduce((s, r) => s + r.금액, 0);
+  rows.forEach(r => r.금액 = Math.round(r.금액));
   lastRows = rows;
+  lastSnapshot = {지번:addressInput.value, 면적:area, 경사도:slope, 용도지역:document.getElementById('landuse').selectedOptions[0].text, 가용비율:usableRatio, 평균토공깊이:depth, 옹벽면적:wallArea, 예비비율:reserve, 산출시각:new Date().toISOString(), 단가출처:'사용자 입력 / 기본값은 예시', 지도분석:'미연동', 토공비:'부지조성 단가에 포함하는 가정. 별도 중복 가산하지 않음', 제외비용:'토지매입·계통연계 추가공사·인허가 및 설계비·금융비용'};
+  const direct = rows.reduce((sum,r)=>sum+r.금액,0);
+  const contingency = Math.round(direct*reserve/100);
+  const vat = Math.round((direct+contingency)*0.1);
+  document.getElementById('budgetSummary').textContent = '직접공사비 '+fmt(direct)+'원 + 예비비 '+fmt(contingency)+'원 + 부가세(10% 가정) '+fmt(vat)+'원 = 총 '+fmt(direct+contingency+vat)+'원';
+  lastSnapshot.직접공사비=direct; lastSnapshot.예비비=contingency; lastSnapshot.부가세=vat; lastSnapshot.총액=direct+contingency+vat;
+  lastLayout = buildLayout(area, ratio);
+  document.getElementById('layout').innerHTML=lastLayout.svg;
 
   document.getElementById('mCapacity').textContent = fmt(capacityKw) + ' kW';
   document.getElementById('mEarthwork').textContent = fmt(earthworkM3) + ' ㎥';
-  document.getElementById('mTotal').textContent = fmt(Math.round(total)) + ' 원';
+  document.getElementById('mTotal').textContent = fmt(lastSnapshot.총액) + ' 원';
 
   renderTable(rows, total);
   document.getElementById('result').style.display = 'block';
@@ -267,11 +297,37 @@ document.getElementById('recalcBtn').addEventListener('click', calculate);
 
 document.getElementById('downloadBtn').addEventListener('click', () => {
   if (!lastRows) return;
+  if (typeof XLSX === 'undefined') { alert('엑셀 기능을 불러오지 못했습니다. 네트워크를 확인 후 새로고침해주세요.'); return; }
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(lastRows);
   XLSX.utils.book_append_sheet(wb, ws, '개략공사비산출서');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(Object.entries(lastSnapshot).map(([항목,값])=>({항목,값}))), '입력조건과가정');
   XLSX.writeFile(wb, '개략공사비_산출서.xlsx');
 });
+
+function buildLayout(area, ratio) {
+  const side=Math.sqrt(area), inset=side*(1-Math.sqrt(ratio))/2;
+  const polygons=[{layer:'PARCEL',points:[[0,0],[side,0],[side,side],[0,side]]}];
+  const w=(side-2*inset)/8, h=(side-2*inset)/6;
+  for(let y=0;y<6;y++)for(let x=0;x<8;x++) {
+    const a=inset+x*w,b=inset+y*h;
+    polygons.push({layer:'SOLAR_CONCEPT',points:[[a,b],[a+w*.8,b],[a+w*.8,b+h*.65],[a,b+h*.65]]});
+  }
+  const scale=260/side;
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-label="정사각형 가정 개념 배치도">'+polygons.map((p,i)=>'<polygon points="'+p.points.map(([x,y])=>`${30+x*scale},${290-y*scale}`).join(' ')+'" fill="'+(i?'#2563eb':'#f1f5f9')+'" stroke="#334155" stroke-width="1"/>').join('')+'<text x="30" y="18" font-size="12">CONCEPT ONLY / '+side.toFixed(1)+'m x '+side.toFixed(1)+'m</text></svg>';
+  return {svg,polygons};
+}
+function saveFile(text,name,type) {const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+document.getElementById('printBtn').onclick=()=>{if(lastRows)window.print();};
+document.getElementById('svgBtn').onclick=()=>{if(lastRows)saveFile(lastLayout.svg,'concept-layout.svg','image/svg+xml');};
+document.getElementById('dxfBtn').onclick=()=>{
+  if(!lastRows)return;
+  let d='0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n9\n$INSUNITS\n70\n6\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n';
+  for(const p of lastLayout.polygons)d+='0\nLWPOLYLINE\n100\nAcDbEntity\n8\n'+p.layer+'\n100\nAcDbPolyline\n90\n'+p.points.length+'\n70\n1\n'+p.points.map(([x,y])=>'10\n'+x+'\n20\n'+y+'\n').join('');
+  saveFile(d+'0\nENDSEC\n0\nEOF\n','concept-layout.dxf','application/dxf');
+};
+// 입력 변경 시 이전 결과를 숨겨 잘못된 보고서 다운로드 방지
+for(const el of document.querySelectorAll('input,select'))el.addEventListener('input',()=>{if (el.id.startsWith('c_')) { calculate(); return; } lastRows=null;document.getElementById('result').style.display='none';});
 </script>
 </body>
 </html>
