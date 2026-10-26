@@ -1,0 +1,13 @@
+{
+  "name": "naeyeokseo-checker",
+  "version": "1.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node cad-server.cjs",
+    "test": "node tests/check.cjs && node tests/drawing-export.cjs",
+    "test:report": "node tests/field-evidence.cjs"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "0.1.100"
+  }
+}

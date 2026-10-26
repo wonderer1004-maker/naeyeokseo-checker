@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>지번 기반 개략공사비 산출</title>
 <script src="solar-layout.js"></script>
+<script src="drawing-export.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
@@ -61,6 +62,7 @@
   details summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; margin-top: 10px; }
 
 .table-scroll {overflow-x:auto} svg {width:100%;height:440px;background:#fff;border:1px solid var(--border)}
+.photo-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:18px}.photo-card{border:1px solid var(--border);border-radius:10px;padding:12px;overflow:hidden}.photo-card img{width:100%;height:200px;object-fit:contain;background:var(--bg)}.photo-card strong{display:block;overflow-wrap:anywhere}.photo-card textarea{width:100%;min-height:100px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;font:inherit}.photo-count{color:var(--muted);font-size:.9rem}#evidenceStatus{white-space:pre-wrap;overflow-wrap:anywhere}
 @media print {body{background:white;color:black;padding:0}nav,.btn,details,.no-print{display:none!important}.card,.metric{break-inside:avoid;padding:10px;margin-bottom:10px}#result{display:block!important}svg{height:220px}input,select{border:0;background:white;color:black}h1{font-size:18px}@page{size:A4;margin:12mm}}
 </style>
 </head>
@@ -144,6 +146,22 @@
     <button class="btn" id="calcBtn" type="button">개략공사비 산출</button>
   </div>
 
+  <section class="card" id="fieldEvidence" aria-labelledby="fieldEvidenceTitle">
+    <h2 id="fieldEvidenceTitle">현장사진 · 드론사진 · 프로젝트 보관</h2>
+    <p class="note">사진과 현장 검토 메모를 배치도 PDF에 함께 첨부합니다. 사진에서 실제 경계·높이·토공량을 자동 측정하지 않습니다. 측량 성과·정사영상·표고 자료로 별도 검증하세요.</p>
+    <label for="projectTitle">프로젝트 / 현장명</label>
+    <input id="projectTitle" type="text" maxlength="100" placeholder="예: OO 태양광 부지 사전 검토">
+    <label for="sitePhotos">현장 이미지 추가 (JPG · PNG · WebP, 최대 8장, 장당 10MB)</label>
+    <input id="sitePhotos" type="file" accept="image/jpeg,image/png,image/webp" multiple data-evidence-action>
+    <p class="note">사진은 기기에서 최대 1600px로 줄여 처리하며 서버로 업로드하지 않습니다. EXIF 촬영정보는 보존되지 않으므로 원본을 별도 보관하고 촬영일·방향을 메모에 적어주세요. 새로고침 전 프로젝트 파일로 저장하세요.</p>
+    <span class="photo-count" id="photoCount"></span>
+    <div class="photo-gallery" id="photoGallery"></div>
+    <button class="btn secondary" id="saveFieldProject" type="button" data-evidence-action>사진 포함 프로젝트 저장</button>
+    <label for="loadFieldProject">저장한 프로젝트 불러오기 (.json)</label>
+    <input id="loadFieldProject" type="file" accept=".json,application/json" data-evidence-action>
+    <p id="evidenceStatus" class="note" role="status" aria-live="polite"></p>
+  </section>
+
   <div id="result" style="display:none;">
     <div class="metrics">
       <div class="metric"><div class="label">예상 태양광 설치용량</div><div class="value" id="mCapacity">-</div></div>
@@ -175,6 +193,9 @@
 
     <div class="card"><h2>4. 개념 배치도</h2><p class="note">진북 기준으로 면적과 같은 정사각형 부지를 가정한 모듈 배치도입니다. 실제 지적 경계·접도·음영·이격 검토를 반영한 설계도가 아닙니다. DXF 단위는 m이며 지역 좌표를 사용합니다.</p><p id="solarSummary"></p><div id="layout"></div><h2 style="margin-top:18px">계절별 태양 조건</h2><div class="table-scroll"><table id="seasonTable"></table></div><p id="energySummary" class="note"></p><p class="note">평탄한 부지·동일한 설치 높이·동일 경사각·평행 행을 가정한 기하 계산입니다. 지형 경사·수목·건물·수평선 음영, 산란광과 부분 음영의 전기적 손실은 별도 검토가 필요합니다. 남중 직달 입사계수와 낮 길이는 실제 일사량이나 발전량이 아닙니다.</p></div>
     <button class="btn secondary" id="printBtn" type="button">인쇄 / PDF 저장</button>
+    <button class="btn" id="drawingPdfBtn" type="button" data-evidence-action>A3 도면·현장사진 PDF 다운로드</button>
+    <button class="btn secondary" id="dwgBtn" type="button" disabled>배치도 DWG 다운로드 (로컬 CAD 서버)</button>
+    <p class="note" id="dwgStatus"></p>
     <button class="btn secondary" id="dxfBtn" type="button">개념 배치도 DXF</button>
     <button class="btn secondary" id="svgBtn" type="button">배치도 SVG</button>
     <button class="btn" id="downloadBtn" type="button">개략공사비 산출서 다운로드 (.xlsx)</button>
@@ -354,7 +375,8 @@ document.getElementById('dxfBtn').onclick=()=>{
   saveFile(d+'0\nENDSEC\n0\nEOF\n','concept-layout.dxf','application/dxf');
 };
 // 입력 변경 시 이전 결과를 숨겨 잘못된 보고서 다운로드 방지
-for(const el of document.querySelectorAll('input,select'))el.addEventListener('input',()=>{if (el.id.startsWith('c_')) { calculate(); return; } lastRows=null;document.getElementById('result').style.display='none';});
+for(const el of document.querySelectorAll('input,select'))el.addEventListener('input',()=>{if(el.closest('#fieldEvidence'))return;if (el.id.startsWith('c_')) { calculate(); return; } lastRows=null;document.getElementById('result').style.display='none';});
 </script>
+<script src="field-evidence.js"></script>
 </body>
 </html>
