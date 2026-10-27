@@ -2,13 +2,15 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 function load(page,defaults={}) {
  const elements={};
  const get=id=>elements[id]??=( {id,value:String(defaults[id]??0),textContent:'',innerHTML:'',style:{},selectedOptions:[{text:'계획관리지역 (예시)'}],addEventListener(){},classList:{add(){},remove(){},contains(c){return c==='irradiance'&&id.startsWith('irr')}}});
- const context=vm.createContext({document:{getElementById:get,querySelectorAll:()=>Object.keys(defaults).filter(x=>!['address','shadowWindow','landuse'].includes(x)).map(get)},localStorage:{removeItem(){}},window:{},console,setTimeout,clearTimeout,URL,Blob,URLSearchParams,alert(){}});
+ const context=vm.createContext({document:{getElementById:get,querySelectorAll:()=>Object.keys(defaults).filter(x=>!['address','shadowWindow','landuse','areaBasis','slopeUnit','siteCostBasis','earthworkMode','costSource','costDate','roundingMode'].includes(x)).map(get)},localStorage:{removeItem(){}},window:{},console,setTimeout,clearTimeout,URL,Blob,URLSearchParams,alert(){}});
+ vm.runInContext('window=globalThis',context);
+ for(const lib of ['estimate-core.js','drawing-graphics.js'])vm.runInContext(fs.readFileSync('docs/'+lib,'utf8'),context);
  if(page==='jibun-estimate')vm.runInContext(fs.readFileSync('docs/solar-layout.js','utf8'),context);
  const html=fs.readFileSync('docs/'+page+'.html','utf8');vm.runInContext(html.split('<script>')[1].split('</script>')[0],context);
  return {run:code=>vm.runInContext(code,context),get};
 }
 const inputs={area:3000,slope:8,landuse:1,usableRatio:.6,depth:.4,wall:150,reserve:10,c_civil_site:45000,c_civil_wall:350000,c_elec_main:150000,c_elec_wire:80000,c_solar_module:950000,c_solar_bos:200000};
-Object.assign(inputs,{latitude:37.5,tilt:30,azimuth:180,moduleLength:2.3,moduleWidth:1.13,modulePower:550,clearance:.8,moduleGap:.02,shadowWindow:'day',performance:.8,irr0:'',irr1:'',irr2:'',irr3:''});
+Object.assign(inputs,{areaBasis:'horizontal',slopeUnit:'percent',siteCostBasis:'horizontal',earthworkMode:'included',c_earthwork:0,costSource:'',costDate:'',latitude:37.5,tilt:30,azimuth:180,moduleLength:2.3,moduleWidth:1.13,modulePower:550,clearance:.8,moduleGap:.02,shadowWindow:'day',performance:.8,irr0:'',irr1:'',irr2:'',irr3:''});
 const p=load('jibun-estimate',inputs);p.run('calculate()');
 assert.ok(p.run('lastSnapshot.총액')>0); assert.ok(Math.abs(p.run('lastLayout.capacityKw')-p.run('lastLayout.count')*.55)<1e-8);assert.equal(p.get('mEarthwork').textContent,'1,200 ㎥');
 assert.equal(p.run('lastLayout.polygons.length'),p.run('lastLayout.count')+2);
@@ -17,11 +19,11 @@ p.get('irr0').value='3';p.get('irr1').value='5';p.get('irr2').value='3';p.get('i
 p.get('latitude').value='0';p.run('calculate()');assert.equal(p.run('lastRows'),null);p.get('latitude').value='37.5';
 p.get('area').value='-1';p.run('calculate()');assert.equal(p.run('lastRows'),null);
 p.get('area').value='3000';p.get('usableRatio').value='0';p.run('calculate()');assert.equal(p.run('lastRows'),null);
-const q=load('index');
+const q=load('index',{roundingMode:'round'});
 q.run(`processRows([{공종:'토목',품명:'<img src=x onerror=alert(1)>',단위:'㎡',수량:'1,000',합계단가:10,금액:10000},{공종:'토목',품명:'배관',단위:'m',수량:2,합계단가:10,금액:25}])`);
 assert.equal(q.run('lastSummary.length'),2);assert.equal(q.run('lastRows[1].오류여부'),true);
 assert.ok(!q.get('detailTable').innerHTML.includes('<img'));assert.ok(q.get('detailTable').innerHTML.includes('&lt;img'));
-assert.throws(()=>q.run(`processRows([{품명:'누락',수량:1,합계단가:null,금액:0}])`));
+q.run(`processRows([{품명:'누락',수량:1,합계단가:null,금액:0}])`);assert.equal(q.run('lastRows[0].오류여부'),true);assert.equal(q.run('lastRows[0].계산금액'),null);
 for(const file of ['index.html','jibun-estimate.html'])assert.equal(fs.readFileSync('docs/'+file,'utf8'),fs.readFileSync('netlify-site/'+file,'utf8'));
 console.log('PASS: estimate totals, invalid inputs, layout, mixed units, comma numbers, missing values, HTML escaping, deploy directory parity');
 
@@ -37,3 +39,11 @@ for(const azimuth of [90,135,180,225,270]){const l=solar.build(3000,.6,{...o,azi
 assert.equal(solar.build(1,.6,o).count,0);
 console.log('PASS: seasonal noon altitudes, winter shadow spacing, azimuth rotations, parcel containment, zero modules, POA energy inputs');
 console.log(JSON.stringify({count:layout.count,capacity:layout.capacityKw,gap:layout.gap,pitch:layout.pitch}));
+
+const corrected=load('jibun-estimate',{...inputs,area:4242.640687119285,slope:45,slopeUnit:'degrees',areaBasis:'surface',siteCostBasis:'surface',earthworkMode:'separate',c_earthwork:10000,depth:.4});
+corrected.run('calculate()');assert.ok(corrected.run('Math.abs(lastSnapshot.수평면적-3000)<1e-8'));assert.equal(corrected.run('lastSnapshot.토공량'),1200);assert.equal(corrected.run('lastRows.length'),7);
+assert.equal(corrected.run('lastRows.reduce((sum,r)=>sum+r.금액,0)'),corrected.run('lastSnapshot.직접공사비'));
+const previousDirect=corrected.run('lastSnapshot.직접공사비');corrected.get('depth').value='.8';corrected.run('calculate()');assert.equal(corrected.run('lastSnapshot.직접공사비')-previousDirect,12000000);
+corrected.get('c_earthwork').value='0';corrected.run('calculate()');assert.equal(corrected.run('lastRows'),null);
+corrected.get('c_earthwork').value='10000';corrected.get('slope').value='90';corrected.run('calculate()');assert.equal(corrected.run('lastRows'),null);
+console.log('PASS: full estimate UI path for inclined input area, separate earthwork costs, source-row totals, depth sensitivity and invalid slope/price');

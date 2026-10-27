@@ -1,10 +1,10 @@
 {
   "name": "naeyeokseo-checker",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "start": "node cad-server.cjs",
-    "test": "node tests/check.cjs && node tests/drawing-export.cjs",
+    "test": "node tests/check.cjs && node tests/drawing-export.cjs && node tests/estimate-core.cjs",
     "test:report": "node tests/field-evidence.cjs"
   },
   "devDependencies": {

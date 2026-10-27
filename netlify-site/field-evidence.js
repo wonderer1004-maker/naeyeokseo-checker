@@ -38,14 +38,14 @@
       render();status(errors.length?errors.join(' / '):'사진을 첨부했습니다. 원본은 별도로 보관하세요. 사진은 이 기기에서만 처리됩니다.');
     }finally{e.target.value='';setBusy(false);}
   };
-  function snapshot(){return {format:'solar-field-project',version:1,project:$('projectTitle').value,address:$('address').value,inputs:Object.fromEntries(inputIds.map(id=>[id,$(id).value])),photos};}
+  function snapshot(){return {format:'solar-field-project',version:2,project:$('projectTitle').value,address:$('address').value,costSource:$('costSource').value,costDate:$('costDate').value,inputs:Object.fromEntries(inputIds.map(id=>[id,$(id).value])),photos};}
   $('saveFieldProject').onclick=()=>download(JSON.stringify(snapshot()),'solar-field-project.json','application/json');
   $('loadFieldProject').onchange=async e=>{
     if(busy)return;const f=e.target.files[0];if(!f)return;setBusy(true);
     try{
       if(f.size>30*1024*1024)throw new Error('프로젝트 파일은 30MB 이하여야 합니다.');
       const p=JSON.parse(await f.text());
-      if(p.format!=='solar-field-project'||p.version!==1||typeof p.inputs!=='object'||!p.inputs||!Array.isArray(p.photos)||p.photos.length>8)throw new Error('지원하지 않는 프로젝트 파일입니다.');
+      if(p.format!=='solar-field-project'||![1,2].includes(p.version)||typeof p.inputs!=='object'||!p.inputs||!Array.isArray(p.photos)||p.photos.length>8)throw new Error('지원하지 않는 프로젝트 파일입니다.');
       const checked=[];
       for(const item of p.photos){
         if(typeof item.data!=='string'||item.data.length>5*1024*1024||!/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(item.data))throw new Error('사진 형식 오류');
@@ -59,6 +59,8 @@
       }
       photos.splice(0,photos.length,...checked);$('projectTitle').value=String(p.project||'').slice(0,100);$('address').value=String(p.address||'').slice(0,300);
       for(const id of inputIds)if(id in p.inputs)$(id).value=String(p.inputs[id]);
+for(const [id,value]of Object.entries({areaBasis:'horizontal',slopeUnit:'percent',siteCostBasis:'horizontal',earthworkMode:'included',c_earthwork:'0'}))if(!(id in p.inputs))$(id).value=value;
+$('costSource').value=String(p.costSource||'').slice(0,160);$('costDate').value=/^\d{4}-\d{2}-\d{2}$/.test(p.costDate||'')?p.costDate:'';
       render();calculate();status('프로젝트와 사진을 불러왔습니다. 입력값과 계산 결과를 확인하세요.');
     }catch(err){status('불러오기 실패: '+err.message);}finally{e.target.value='';setBusy(false);}
   };
@@ -81,29 +83,30 @@
     if(busy||!lastRows)return;setBusy(true);status('도면과 현장사진 PDF를 만드는 중입니다…');
     try{
       const pages=[],{c,x}=page('태양광 개념 배치도 · 현장 검토',1),l=lastLayout;
-      const scale=Math.min(1280/l.side,1180/l.side),ox=100,oy=1490;
-      for(const p of l.polygons){x.beginPath();p.points.forEach(([u,v],i)=>i?x.lineTo(ox+u*scale,oy-v*scale):x.moveTo(ox+u*scale,oy-v*scale));x.closePath();x.strokeStyle=p.layer==='USABLE'?'#16a34a':'#334155';x.lineWidth=p.layer==='SOLAR_MODULE'?1:3;if(p.layer==='SOLAR_MODULE'){x.fillStyle='#2563eb';x.fill();}x.stroke();}
-      x.fillStyle='#0f172a';x.font='bold 28px "Malgun Gothic", sans-serif';x.fillText('↑ 진북 N',ox+40,280);
-      x.font='24px "Malgun Gothic", sans-serif';x.fillText('가정 부지 폭 '+l.side.toFixed(2)+'m / 실측 축척도 아님',ox,1550);
+      DrawingGraphics.canvas(x,l,{x:60,y:300,width:1400,height:1130});
       let y=320;const tx=1500;const text=(s,bold=false)=>{x.font=(bold?'bold ':'')+'25px "Malgun Gothic", sans-serif';lines(x,s,tx,y,790,36,4);y+=82;};
       text('설치용량 '+l.capacityKw.toFixed(2)+' kW · 모듈 '+l.count+'장',true);
       text('방위각 '+lastSnapshot.모듈방위각+'° · 경사각 '+lastSnapshot.모듈경사각+'°');
       text('행간 '+l.gap.toFixed(2)+'m · 행 피치 '+l.pitch.toFixed(2)+'m');
-      text('부지면적 '+lastSnapshot.면적.toLocaleString('ko-KR')+'㎡');
+      text('수평 '+fmt(lastSnapshot.수평면적)+'㎡ / 사면 '+fmt(lastSnapshot.사면적)+'㎡');
+text('경사 '+lastSnapshot.경사각.toFixed(2)+'° / 계수 '+lastSnapshot.면적보정계수.toFixed(5));
       text('직접공사비 '+fmt(lastSnapshot.직접공사비)+'원');
       text('예비비 '+fmt(lastSnapshot.예비비)+'원 / 부가세 '+fmt(lastSnapshot.부가세)+'원');
       text('총 개략공사비 '+fmt(lastSnapshot.총액)+'원',true);
-      text('단가: 사용자 입력 / 기본값은 예시');
+      text('단가('+lastSnapshot.단가기준일+'): '+lastSnapshot.단가출처.slice(0,48));
       text('제외: '+lastSnapshot.제외비용);
-      y+=70;text('첨부 현장사진 '+photos.length+'장. 사진에서 경계·높이·물량을 자동 추출하지 않습니다.');
+      y+=20;text('첨부 현장사진 '+photos.length+'장. 사진에서 경계·높이·물량을 자동 추출하지 않습니다.');
       pages.push(jpegPage(c));
       const {c:tc,x:txc}=page('공사비 산출 내역 · 계산 조건',2);
+      txc.fillStyle='#183153';txc.fillRect(70,272,2240,66);txc.fillStyle='#fff';
       txc.font='bold 26px "Malgun Gothic", sans-serif';txc.fillText('항목',90,315);txc.fillText('수량 / 단위',1050,315);txc.fillText('단가(원)',1500,315);txc.fillText('금액(원)',1900,315);
-      lastRows.forEach((r,i)=>{const yy=390+i*85;txc.font='25px "Malgun Gothic", sans-serif';txc.fillText(r.항목,90,yy);txc.fillText(fmt(r.수량)+' '+r.단위,1050,yy);txc.fillText(fmt(r.단가),1500,yy);txc.fillText(fmt(r.금액),1900,yy);});
+      lastRows.forEach((r,i)=>{const yy=390+i*75;txc.fillStyle=i%2?'#f1f5f9':'#fff';txc.fillRect(70,yy-40,2240,75);txc.fillStyle='#183153';txc.font='25px "Malgun Gothic", sans-serif';txc.fillText(r.항목,90,yy);txc.fillText(fmt(r.수량)+' '+r.단위,1050,yy);txc.fillText(fmt(r.단가),1500,yy);txc.fillText(fmt(r.금액),1900,yy);txc.font='18px Malgun Gothic';txc.fillStyle='#64748b';txc.fillText(r.산출근거.slice(0,45),90,yy+27,850);});
       txc.font='26px "Malgun Gothic", sans-serif';lines(txc,$('budgetSummary').textContent,90,980,2150,44,4);
-      lines(txc,'토공: '+lastSnapshot.토공비+' / 평균 깊이 '+lastSnapshot.평균토공깊이+'m',90,1120,2150,42,4);
-      lines(txc,'제외 비용: '+lastSnapshot.제외비용,90,1240,2150,42,4);
-      lines(txc,'실제 경계·경사·장애물·계통연계는 별도 검토가 필요합니다. 실시설계 및 인허가 도면을 대체하지 않습니다.',90,1360,2150,42,4);pages.push(jpegPage(tc));
+      lines(txc,lastSnapshot.면적산정기준,90,1090,2150,38,3);
+lines(txc,'토공: '+lastSnapshot.토공비+' / 수직 두께 '+lastSnapshot.평균토공깊이+'m',90,1190,2150,38,3);
+      lines(txc,'제외 비용: '+lastSnapshot.제외비용,90,1290,2150,38,3);
+      lines(txc,lastSnapshot.금액처리,90,1400,2150,36,3);
+      lines(txc,'실제 경계·경사·장애물·계통연계는 별도 검토가 필요합니다. 실시설계 및 인허가 도면을 대체하지 않습니다.',90,1500,2150,34,2);pages.push(jpegPage(tc));
       for(let i=0;i<photos.length;i++){
         const p=photos[i],{c:pc,x:px}=page('현장사진 '+(i+1)+' · 검토 메모',pages.length+1),im=await loadImage(p.data);
         const ratio=Math.min(1480/im.width,1190/im.height);px.drawImage(im,80+(1480-im.width*ratio)/2,300+(1190-im.height*ratio)/2,im.width*ratio,im.height*ratio);

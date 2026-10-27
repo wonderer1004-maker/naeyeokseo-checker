@@ -5,11 +5,11 @@ const {createCanvas,Image}=require('@napi-rs/canvas');
 const html=fs.readFileSync('docs/jibun-estimate.html','utf8'),elements={},downloads=[];
 function el(id,extra={}){return elements[id]??=(Object.assign({id,value:'',textContent:'',innerHTML:'',style:{},disabled:false,tagName:'INPUT',children:[],addEventListener(){},closest(){return null;},setAttribute(){},append(...c){this.children.push(...c);},replaceChildren(){this.children=[];},click(){},selectedOptions:[{text:'계획관리지역 (예시)'}],classList:{contains(c){return c==='irradiance'&&id.startsWith('irr');}}},extra));}
 for(const tag of html.matchAll(/<input\b[^>]*>/g)){const id=tag[0].match(/id="([^"]+)"/)?.[1];if(id)el(id,{type:tag[0].match(/type="([^"]+)"/)?.[1],value:tag[0].match(/value="([^"]*)"/)?.[1]||''});}
-for(const [id,value] of Object.entries({landuse:'1.0',shadowWindow:'day'}))el(id,{tagName:'SELECT',value,options:[{value}]});
+for(const [id,value] of Object.entries({landuse:'1.0',shadowWindow:'day',areaBasis:'horizontal',slopeUnit:'percent',siteCostBasis:'horizontal',earthworkMode:'included'}))el(id,{tagName:'SELECT',value,options:[{value}]});
 const document={getElementById:el,querySelectorAll(selector){if(selector.startsWith('input'))return Object.values(elements).filter(e=>(selector==='input,select')||(e.type==='number')||(selector.includes('select')&&e.tagName==='SELECT'));return [];},createElement(tag){return tag==='canvas'?createCanvas(1,1):el('generated-'+Object.keys(elements).length,{tagName:tag.toUpperCase()});}};
 const URLMock=class extends URL{};URLMock.createObjectURL=b=>{downloads.push(b);return 'blob:test';};URLMock.revokeObjectURL=()=>{};
 const c=vm.createContext({document,Image,TextEncoder,Uint8Array,Blob,URL:URLMock,URLSearchParams,console,localStorage:{removeItem(){}},location:{hostname:'example.github.io'},setTimeout,clearTimeout,atob,alert(){}});
-vm.runInContext('window=globalThis',c);for(const file of ['solar-layout.js','drawing-export.js'])vm.runInContext(fs.readFileSync('docs/'+file,'utf8'),c);
+vm.runInContext('window=globalThis',c);for(const file of ['estimate-core.js','drawing-graphics.js','solar-layout.js','drawing-export.js'])vm.runInContext(fs.readFileSync('docs/'+file,'utf8'),c);
 vm.runInContext(html.split('<script>')[1].split('</script>')[0],c);vm.runInContext(fs.readFileSync('docs/field-evidence.js','utf8'),c);
 async function main(){
   const sample=createCanvas(1200,800),s=sample.getContext('2d');s.fillStyle='#dbe8d0';s.fillRect(0,0,1200,800);s.fillStyle='#b2a18a';s.fillRect(140,160,860,470);s.fillStyle='#334155';s.fillRect(0,650,1200,110);s.font='24px "Malgun Gothic"';s.fillText('합성 테스트 이미지 / 실제 현장 사진 아님',50,80);

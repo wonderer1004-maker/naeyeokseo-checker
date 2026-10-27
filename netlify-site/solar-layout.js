@@ -34,9 +34,9 @@ const SolarLayout = (() => {
    const points=[[x,y],[x+o.width,y],[x+o.width,y+footprint],[x,y+footprint]].map(([u,v])=>rotate(u,v));
    if(points.every(([u,v])=>u>=inset-1e-8&&u<=side-inset+1e-8&&v>=inset-1e-8&&v<=side-inset+1e-8)){polygons.push({layer:'SOLAR_MODULE',points});count++;rc++;}
   }if(rc)occupiedRows++;}
-  const scale=260/side;
-  const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 335" role="img" aria-label="진북 기준 계절 고도 반영 모듈 배치도">'+polygons.map((p,i)=>'<polygon points="'+p.points.map(([x,y])=>`${30+x*scale},${300-y*scale}`).join(' ')+'" fill="'+(i>1?'#2563eb':i?'none':'#f1f5f9')+'" stroke="'+(i===1?'#16a34a':'#334155')+'" stroke-width="'+(i>1?.4:1)+'"/>').join('')+'<g font-size="12" fill="#111827"><text x="151" y="15">북 N</text><text x="294" y="173">동 E</text><text x="151" y="325">남 S</text><text x="1" y="173">서 W</text></g><path d="M 160 31 L 160 19 L 156 25 M 160 19 L 164 25" stroke="#111827" fill="none"/></svg>';
-  return {svg,polygons,count,occupiedRows,capacityKw:count*o.power/1000,height,footprint,shadow,gap,pitch,side,seasons:seasons(o)};
+  const result={polygons,count,occupiedRows,capacityKw:count*o.power/1000,height,footprint,shadow,gap,pitch,side,seasons:seasons(o)};
+  const graphics=typeof DrawingGraphics!=='undefined'?DrawingGraphics:require('./drawing-graphics.js');
+  result.svg=graphics.svg(result);return result;
  }
  return {sun,seasons,build};
 })();
