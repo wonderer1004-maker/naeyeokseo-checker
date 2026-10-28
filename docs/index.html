@@ -101,6 +101,8 @@
   h2 { font-size: 1.1rem; margin: 0 0 12px; }
 thead{background:#edf3f9}thead th{position:sticky;top:0;background:#edf3f9}td{font-variant-numeric:tabular-nums}tbody tr:nth-child(even){background:rgba(148,163,184,.06)}select{padding:8px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text)}.card{box-shadow:0 5px 22px rgba(15,35,65,.04)}@media(prefers-color-scheme:dark){thead,thead th{background:#1b3048}}
 </style>
+<link rel="stylesheet" href="sheet-ui.css">
+<script src="workspace-entry.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -299,5 +301,6 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
   XLSX.writeFile(wb, '검토결과_리포트.xlsx');
 });
 </script>
+<script defer src="sheet-ui.js"></script>
 </body>
 </html>
