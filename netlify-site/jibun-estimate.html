@@ -4,10 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>지번 기반 개략공사비 산출</title>
+<script src="engineering-sheet.js?v=1.7.0"></script>
 <script src="estimate-core.js"></script>
-<script src="drawing-graphics.js"></script>
+<script src="drawing-graphics.js?v=1.7.0"></script>
 <script src="solar-layout.js"></script>
-<script src="drawing-export.js"></script>
+<script src="drawing-export.js?v=1.7.0"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
@@ -63,7 +64,7 @@
   .coord-box { font-size: 0.85rem; color: var(--muted); margin-top: 8px; min-height: 20px; }
   details summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; margin-top: 10px; }
 
-.table-scroll {overflow-x:auto} svg {width:100%;height:auto;aspect-ratio:1040/760;background:#fff;border:1px solid var(--border)}
+.table-scroll {overflow-x:auto} svg {width:100%;height:auto;aspect-ratio:1260/891;background:#fff;border:1px solid var(--border)}
 .photo-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:18px}.photo-card{border:1px solid var(--border);border-radius:10px;padding:12px;overflow:hidden}.photo-card img{width:100%;height:200px;object-fit:contain;background:var(--bg)}.photo-card strong{display:block;overflow-wrap:anywhere}.photo-card textarea{width:100%;min-height:100px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;font:inherit}.photo-count{color:var(--muted);font-size:.9rem}#evidenceStatus{white-space:pre-wrap;overflow-wrap:anywhere}
 @media print {body{background:white;color:black;padding:0}nav,.btn,details,.no-print{display:none!important}.card,.metric{break-inside:avoid;padding:10px;margin-bottom:10px}#result{display:block!important}svg{height:220px}input,select{border:0;background:white;color:black}h1{font-size:18px}@page{size:A4;margin:12mm}}
 body{background:radial-gradient(at 0% 0%,#e8eef7 0,transparent 52%),var(--bg)}.card{box-shadow:0 5px 22px #142d4e09;border-radius:16px}.metric{border-top:3px solid #0f766e}.area-audit{border-left:4px solid #0f766e}thead,tfoot{background:#eaf2fb}td{font-variant-numeric:tabular-nums}tbody tr:nth-child(even){background:#94a3b810}input[type=date]{padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)}@media(prefers-color-scheme:dark){thead,tfoot{background:#1b3048}}</style>
@@ -397,7 +398,7 @@ document.getElementById('dxfBtn').onclick=()=>{
 // 입력 변경 시 이전 결과를 숨겨 잘못된 보고서 다운로드 방지
 for(const el of document.querySelectorAll('input,select'))el.addEventListener('input',()=>{if(el.closest('#fieldEvidence'))return;if (el.id.startsWith('c_')) { calculate(); return; } lastRows=null;document.getElementById('result').style.display='none';});
 </script>
-<script src="field-evidence.js"></script>
+<script src="field-evidence.js?v=1.7.0"></script>
 <script defer src="sheet-ui.js"></script>
 </body>
 </html>

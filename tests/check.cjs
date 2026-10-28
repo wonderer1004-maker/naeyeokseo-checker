@@ -4,7 +4,7 @@ function load(page,defaults={}) {
  const get=id=>elements[id]??=( {id,value:String(defaults[id]??0),textContent:'',innerHTML:'',style:{},selectedOptions:[{text:'계획관리지역 (예시)'}],addEventListener(){},classList:{add(){},remove(){},contains(c){return c==='irradiance'&&id.startsWith('irr')}}});
  const context=vm.createContext({document:{getElementById:get,querySelectorAll:()=>Object.keys(defaults).filter(x=>!['address','shadowWindow','landuse','areaBasis','slopeUnit','siteCostBasis','earthworkMode','costSource','costDate','roundingMode'].includes(x)).map(get)},localStorage:{removeItem(){}},window:{},console,setTimeout,clearTimeout,URL,Blob,URLSearchParams,alert(){}});
  vm.runInContext('window=globalThis',context);
- for(const lib of ['estimate-core.js','drawing-graphics.js'])vm.runInContext(fs.readFileSync('docs/'+lib,'utf8'),context);
+ for(const lib of ['engineering-sheet.js','estimate-core.js','drawing-graphics.js'])vm.runInContext(fs.readFileSync('docs/'+lib,'utf8'),context);
  if(page==='jibun-estimate')vm.runInContext(fs.readFileSync('docs/solar-layout.js','utf8'),context);
  const html=fs.readFileSync('docs/'+page+'.html','utf8');vm.runInContext(html.split('<script>')[1].split('</script>')[0],context);
  return {run:code=>vm.runInContext(code,context),get};

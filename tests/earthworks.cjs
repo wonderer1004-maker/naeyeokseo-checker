@@ -25,7 +25,7 @@ console.log('PASS: known rectangle/mixed-sign earthwork volumes, zero-crossing a
 async function artifacts(){
  const {createCanvas}=require('@napi-rs/canvas'),R=require('../docs/earthworks-report.js'),D=require('../docs/drawing-export.js');
  fs.mkdirSync('output/pdf',{recursive:true});fs.mkdirSync('output/cad',{recursive:true});fs.mkdirSync('output/spreadsheets',{recursive:true});
- const pages=R.pages(m,createCanvas);assert.equal(pages.length,6);fs.writeFileSync('output/pdf/earthworks-sample.pdf',D.pdf(pages));fs.writeFileSync('output/cad/earthworks-sample.dxf',dxf);
+ const pages=R.pages(m,createCanvas);assert.equal(pages.length,m.stations.length+4);fs.writeFileSync('output/pdf/earthworks-sample.pdf',D.pdf(pages));fs.writeFileSync('output/cad/earthworks-sample.dxf',dxf);
  const XLSX=require('../.tools/xlsx.cjs'),wb=XLSX.utils.book_new();
  for(const[name,rows]of Object.entries(data))XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),name);
  fs.writeFileSync('output/spreadsheets/earthworks-sample.xlsx',XLSX.write(wb,{bookType:'xlsx',type:'buffer'}));const reopened=XLSX.read(fs.readFileSync('output/spreadsheets/earthworks-sample.xlsx'),{type:'buffer'});assert.equal(reopened.SheetNames.length,8);assert.equal(XLSX.utils.sheet_to_json(reopened.Sheets['구간토공량']).reduce((v,r)=>v+r.절토량,0),m.cut);
@@ -39,7 +39,7 @@ async function artifacts(){
  get('xlsx').onclick();get('save').onclick();const project=JSON.parse(await downloads[0].text());assert.equal(project.format,'earthworks-sections');
  get('points').handlers.input();assert.equal(get('result').hidden,true);const count=downloads.length;get('dxf').onclick();assert.equal(downloads.length,count);
  const cp=require('node:child_process'),convert=path.resolve('.tools/libredwg/dxf2dwg.exe'),read=path.resolve('.tools/libredwg/dwgread.exe'),target=path.resolve('output/cad/earthworks-sample.dwg');
- if(fs.existsSync(convert)){if(fs.existsSync(target))fs.unlinkSync(target);cp.execFileSync(convert,['--as','r2000','-o',target,path.resolve('output/cad/earthworks-sample.dxf')],{windowsHide:true,stdio:'pipe'});assert.equal(fs.readFileSync(target).subarray(0,6).toString(),'AC1015');const json=JSON.parse(cp.execFileSync(read,['-O','JSON',target],{windowsHide:true,maxBuffer:4e6}).toString());const entities=json.OBJECTS.filter(o=>o.entity==='LWPOLYLINE');assert.equal(entities.length,(dxf.match(/\nLWPOLYLINE\n/g)||[]).length);console.log('PASS: native full drawing DWG write/read geometry count');}
- console.log('PASS: 6-page A3 PDF, eight-sheet XLSX write/read, application calculation/export/project and stale-result prevention');
+ if(fs.existsSync(convert)){if(fs.existsSync(target))fs.unlinkSync(target);cp.execFileSync(convert,['--as','r2000','-o',target,path.resolve('output/cad/earthworks-sample.dxf')],{windowsHide:true,stdio:'pipe'});assert.equal(fs.readFileSync(target).subarray(0,6).toString(),'AC1015');const json=JSON.parse(cp.execFileSync(read,['-O','JSON',target],{windowsHide:true,maxBuffer:32e6}).toString());const entities=json.OBJECTS.filter(o=>o.entity==='LWPOLYLINE');assert.equal(entities.length,(dxf.match(/\nLWPOLYLINE\n/g)||[]).length);console.log('PASS: native full drawing DWG write/read geometry count');}
+ console.log('PASS: A3 full-sheet PDF, eight-sheet XLSX write/read, application calculation/export/project and stale-result prevention');
 }
 if(process.argv.includes('--artifacts'))artifacts().catch(e=>{console.error(e);process.exitCode=1;});

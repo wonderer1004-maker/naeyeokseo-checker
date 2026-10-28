@@ -9,7 +9,7 @@ for(const [id,value] of Object.entries({landuse:'1.0',shadowWindow:'day',areaBas
 const document={getElementById:el,querySelectorAll(selector){if(selector.startsWith('input'))return Object.values(elements).filter(e=>(selector==='input,select')||(e.type==='number')||(selector.includes('select')&&e.tagName==='SELECT'));return [];},createElement(tag){return tag==='canvas'?createCanvas(1,1):el('generated-'+Object.keys(elements).length,{tagName:tag.toUpperCase()});}};
 const URLMock=class extends URL{};URLMock.createObjectURL=b=>{downloads.push(b);return 'blob:test';};URLMock.revokeObjectURL=()=>{};
 const c=vm.createContext({document,Image,TextEncoder,Uint8Array,Blob,URL:URLMock,URLSearchParams,console,localStorage:{removeItem(){}},location:{hostname:'example.github.io'},setTimeout,clearTimeout,atob,alert(){}});
-vm.runInContext('window=globalThis',c);for(const file of ['estimate-core.js','drawing-graphics.js','solar-layout.js','drawing-export.js'])vm.runInContext(fs.readFileSync('docs/'+file,'utf8'),c);
+vm.runInContext('window=globalThis',c);for(const file of ['engineering-sheet.js','estimate-core.js','drawing-graphics.js','solar-layout.js','drawing-export.js'])vm.runInContext(fs.readFileSync('docs/'+file,'utf8'),c);
 vm.runInContext(html.split('<script>')[1].split('</script>')[0],c);vm.runInContext(fs.readFileSync('docs/field-evidence.js','utf8'),c);
 async function main(){
   const sample=createCanvas(1200,800),s=sample.getContext('2d');s.fillStyle='#dbe8d0';s.fillRect(0,0,1200,800);s.fillStyle='#b2a18a';s.fillRect(140,160,860,470);s.fillStyle='#334155';s.fillRect(0,650,1200,110);s.font='24px "Malgun Gothic"';s.fillText('합성 테스트 이미지 / 실제 현장 사진 아님',50,80);

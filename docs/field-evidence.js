@@ -82,21 +82,7 @@ $('costSource').value=String(p.costSource||'').slice(0,160);$('costDate').value=
   $('drawingPdfBtn').onclick=async()=>{
     if(busy||!lastRows)return;setBusy(true);status('도면과 현장사진 PDF를 만드는 중입니다…');
     try{
-      const pages=[],{c,x}=page('태양광 개념 배치도 · 현장 검토',1),l=lastLayout;
-      DrawingGraphics.canvas(x,l,{x:60,y:300,width:1400,height:1130});
-      let y=320;const tx=1500;const text=(s,bold=false)=>{x.font=(bold?'bold ':'')+'25px "Malgun Gothic", sans-serif';lines(x,s,tx,y,790,36,4);y+=82;};
-      text('설치용량 '+l.capacityKw.toFixed(2)+' kW · 모듈 '+l.count+'장',true);
-      text('방위각 '+lastSnapshot.모듈방위각+'° · 경사각 '+lastSnapshot.모듈경사각+'°');
-      text('행간 '+l.gap.toFixed(2)+'m · 행 피치 '+l.pitch.toFixed(2)+'m');
-      text('수평 '+fmt(lastSnapshot.수평면적)+'㎡ / 사면 '+fmt(lastSnapshot.사면적)+'㎡');
-text('경사 '+lastSnapshot.경사각.toFixed(2)+'° / 계수 '+lastSnapshot.면적보정계수.toFixed(5));
-      text('직접공사비 '+fmt(lastSnapshot.직접공사비)+'원');
-      text('예비비 '+fmt(lastSnapshot.예비비)+'원 / 부가세 '+fmt(lastSnapshot.부가세)+'원');
-      text('총 개략공사비 '+fmt(lastSnapshot.총액)+'원',true);
-      text('단가('+lastSnapshot.단가기준일+'): '+lastSnapshot.단가출처.slice(0,48));
-      text('제외: '+lastSnapshot.제외비용);
-      y+=20;text('첨부 현장사진 '+photos.length+'장. 사진에서 경계·높이·물량을 자동 추출하지 않습니다.');
-      pages.push(jpegPage(c));
+      const pages=[],{c,x}=page('태양광 모듈 개념 배치 평면도',1);DrawingGraphics.canvas(x,{...lastLayout,projectTitle:$('projectTitle').value||'태양광 부지 검토',source:$('address').value||'입력 면적·배치 조건'},{x:0,y:0,width:2380,height:1684});pages.push(jpegPage(c));
       const {c:tc,x:txc}=page('공사비 산출 내역 · 계산 조건',2);
       txc.fillStyle='#183153';txc.fillRect(70,272,2240,66);txc.fillStyle='#fff';
       txc.font='bold 26px "Malgun Gothic", sans-serif';txc.fillText('항목',90,315);txc.fillText('수량 / 단위',1050,315);txc.fillText('단가(원)',1500,315);txc.fillText('금액(원)',1900,315);

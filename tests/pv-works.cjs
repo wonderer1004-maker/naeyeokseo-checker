@@ -44,11 +44,11 @@ async function artifacts(){
  await get('import').onchange({target:{files:[{size:1000,text:async()=>JSON.stringify({format:'earthworks-sections',version:1,...earthProject})}],value:'test'}});assert.equal(get('includeEarth').checked,false);get('includeEarth').checked=true;get('foundationEarthIncluded').checked=true;get('calculate').onclick();assert.equal(get('result').hidden,false);assert.equal(get('error').textContent,'');
  const dxf=G.dxf(sample);assert.match(dxf,/SECTION_POST/);assert.match(dxf,/SLD_AC_BRANCH/);assert.doesNotMatch(dxf,/NaN|Infinity/);fs.writeFileSync('output/cad/pv-works-sample.dxf',dxf);
  const cp=require('node:child_process'),convert=path.resolve('.tools/libredwg/dxf2dwg.exe'),reader=path.resolve('.tools/libredwg/dwgread.exe'),target=path.resolve('output/cad/pv-works-sample.dwg');
- if(fs.existsSync(convert)){if(fs.existsSync(target))fs.unlinkSync(target);cp.execFileSync(convert,['--as','r2000','-o',target,path.resolve('output/cad/pv-works-sample.dxf')],{windowsHide:true,stdio:'pipe'});assert.equal(fs.readFileSync(target).subarray(0,6).toString(),'AC1015');const json=JSON.parse(cp.execFileSync(reader,['-O','JSON',target],{windowsHide:true,maxBuffer:8e6}).toString());assert.equal(json.OBJECTS.filter(o=>o.entity==='LWPOLYLINE').length,(dxf.match(/\nLWPOLYLINE\n/g)||[]).length);}
+ if(fs.existsSync(convert)){if(fs.existsSync(target))fs.unlinkSync(target);cp.execFileSync(convert,['--as','r2000','-o',target,path.resolve('output/cad/pv-works-sample.dxf')],{windowsHide:true,stdio:'pipe'});assert.equal(fs.readFileSync(target).subarray(0,6).toString(),'AC1015');const json=JSON.parse(cp.execFileSync(reader,['-O','JSON',target],{windowsHide:true,maxBuffer:32e6}).toString());assert.equal(json.OBJECTS.filter(o=>o.entity==='LWPOLYLINE').length,(dxf.match(/\nLWPOLYLINE\n/g)||[]).length);}
  console.log('PASS: 11-page PDF, eleven-sheet workbook readback, native complete DWG, workflow export/project restore, legacy area conversion, optional soil import and stale results');
 }
-const closedScene=G.scene('module',m).items.find(p=>p.t==='p'&&p.stroke==='#183153');assert.deepEqual(closedScene.points[0],closedScene.points.at(-1));
-const deepScene=G.scene('detail',P.build({...base,footD:3,frontHeight:.1}));assert.ok(deepScene.items.filter(p=>p.t==='r'&&['#e2e8f0','#fef3c7'].includes(p.fill)).every(p=>p.y+p.h<580));
+const closedScene=G.scene('module',m).items.find(p=>p.t==='p'&&p.stroke==='#111');assert.deepEqual(closedScene.points[0],closedScene.points.at(-1));
+const deepScene=G.scene('detail',P.build({...base,footD:3,frontHeight:.1})),footShapes=deepScene.items.filter(p=>p.t==='r'&&['#eee','#ddd'].includes(p.fill));assert.equal(footShapes.length,6);assert.ok(footShapes.every(p=>p.y+p.h<570));
 assert.match(G.svg(G.scene('single',P.build({...base,series:50}))),/인버터 없음/);
 
 if(process.argv.includes('--artifacts'))artifacts().catch(e=>{console.error(e);process.exitCode=1;});

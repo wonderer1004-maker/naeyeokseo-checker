@@ -14,7 +14,7 @@
     out += text(0,layout.side+h*3,h,'MODULES: '+layout.count+' / DC: '+layout.capacityKw.toFixed(2)+' kW');
     out += text(0,layout.side+h,h,'NORTH: +Y / EAST: +X / PHOTO EVIDENCE IS NOT SURVEY DATA');
     out += text(0,-h*2,h,'ASSUMED SITE WIDTH: '+layout.side.toFixed(2)+' m');
-    return out+'0\nENDSEC\n0\nEOF\n';
+    const sheet=typeof EngineeringSheet!=='undefined'?EngineeringSheet:require('./engineering-sheet.js'),graphics=typeof DrawingGraphics!=='undefined'?DrawingGraphics:require('./drawing-graphics.js');return sheet.appendCad(out+'0\nENDSEC\n0\nEOF\n',[graphics.paper(layout)],layout.side*2+10,.08);
   }
   function pdf(pages) {
     if (!pages.length) throw new Error('PDF 페이지가 없습니다.');

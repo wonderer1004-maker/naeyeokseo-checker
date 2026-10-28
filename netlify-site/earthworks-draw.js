@@ -1,7 +1,8 @@
 (function(root){'use strict';
 const W=typeof Earthworks!=='undefined'?Earthworks:require('./earthworks-core.js');
+const Sheet=typeof EngineeringSheet!=='undefined'?EngineeringSheet:require('./engineering-sheet.js');
 const fmt=n=>Number(n).toLocaleString('ko-KR',{maximumFractionDigits:3});
-function scene(kind,m,index=0){
+function legacyScene(kind,m,index=0){
  const height=kind==='plan'?560:340,a=[],R=(x,y,w,h,fill,stroke)=>a.push({t:'r',x,y,w,h,fill,stroke}),L=(x,y,x2,y2,stroke,width=1)=>a.push({t:'l',x,y,x2,y2,stroke,width}),T=(x,y,text,size=13,fill='#183153',bold=false)=>a.push({t:'t',x,y,text:String(text),size,fill,bold}),P=(points,fill,stroke,width=1)=>a.push({t:'p',points,fill,stroke,width});
  R(0,0,1100,height,'#fff','#bdcbdc');R(0,0,1100,65,'#183153');const s=m.stations[index];
  T(24,29,kind==='plan'?'평면도 / 직선 기준선 지역 좌표':kind==='long'?'종단면도 / 중심선 offset = 0':'횡단면도 / STA '+fmt(s.station),20,'#fff',true);
@@ -29,9 +30,24 @@ function scene(kind,m,index=0){
  }
  return {width:1100,height,items:a};
 }
-function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function svg(s){return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+s.width+' '+s.height+'" role="img" aria-label="종횡단 및 토공 검토도">'+s.items.map(p=>{if(p.t==='r')return '<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+p.h+'" fill="'+p.fill+'" stroke="'+(p.stroke||'none')+'"/>';if(p.t==='l')return '<line x1="'+p.x+'" y1="'+p.y+'" x2="'+p.x2+'" y2="'+p.y2+'" stroke="'+p.stroke+'" stroke-width="'+p.width+'"/>';if(p.t==='p')return '<polyline points="'+p.points.map(v=>v.join(',')).join(' ')+'" fill="'+p.fill+'" stroke="'+p.stroke+'" stroke-width="'+p.width+'"/>';return '<text x="'+p.x+'" y="'+p.y+'" font-family="Malgun Gothic,sans-serif" font-size="'+p.size+'" fill="'+p.fill+'" font-weight="'+(p.bold?700:400)+'">'+esc(p.text)+'</text>';}).join('')+'</svg>';}
-function canvas(c,s,box){const k=Math.min(box.w/s.width,box.h/s.height);c.save();c.translate(box.x,box.y);c.scale(k,k);for(const p of s.items){c.fillStyle=p.fill||'#183153';c.strokeStyle=p.stroke||'transparent';c.lineWidth=p.width||1;if(p.t==='r'){if(p.fill!=='none')c.fillRect(p.x,p.y,p.w,p.h);if(p.stroke)c.strokeRect(p.x,p.y,p.w,p.h);}else if(p.t==='t'){c.font=(p.bold?'bold ':'')+p.size+'px "Malgun Gothic",sans-serif';c.fillText(p.text,p.x,p.y);}else{c.beginPath();if(p.t==='l'){c.moveTo(p.x,p.y);c.lineTo(p.x2,p.y2);}else{p.points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));if(p.fill!=='none'){c.closePath();c.fill();}}if(p.stroke!=='none')c.stroke();}}c.restore();}
+function scene(kind,m,index=0){
+ const old=legacyScene(kind,m,index),title=kind==='plan'?'토공 계획 평면도':kind==='long'?'중심선 종단면도':'횡단면도 / STA '+fmt(m.stations[index].station);
+ const s=Sheet.make({project:m.title,source:m.source,title,no:kind==='plan'?'CV-001':kind==='long'?'CV-002':'CV-'+String(101+index),scale:'AUTO FIT'}),p=Sheet.pen(s);
+ for(const raw of old.items.slice(4)){const a={...raw};for(const k of ['x','x2'])if(k in a)a[k]+=65;for(const k of ['y','y2'])if(k in a)a[k]+=30;if(a.points)a.points=a.points.map(v=>[v[0]+65,v[1]+30]);
+  if(a.t==='t'){a.text=a.text.replace('지역 좌표 1:1','평면 x/y 동일 배율').replace('색상은 셀 평균','음영은 셀 평균');a.fill='#111';a.size=Math.min(a.size,14);}else{if(a.fill&&a.fill!=='none')a.fill=['#fee2e2','#fecaca'].includes(a.fill)?'#d6d6d6':['#dbeafe','#bfdbfe'].includes(a.fill)?'#f2f2f2':'#fff';if(a.stroke&&a.stroke!=='none'){if(a.stroke==='#0f766e')a.dash=[6,3];a.stroke=['#dbe4ee','#e2e8f0'].includes(a.stroke)?'#ccc':'#222';}}s.items.push(a);
+ }
+ p.T(80,63,'입력 측점 기준 / 같은 좌표·표고 기준 필요 / 실제 선형·사면 접속 미반영',10);
+ if(kind!=='plan'){
+  const pts=kind==='long'?m.stations.map(st=>({...st.points.find(p=>p.offset===0),offset:st.station})):m.stations[index].points,step=Math.max(1,Math.ceil(pts.length/12)),sample=pts.filter((_,i)=>i%step===0||i===pts.length-1),x=100,y=505,w=1060,first=120,cw=(w-first)/sample.length;
+  const rows=[['누가거리 / 이격 (m)',p=>fmt(p.offset)],['현황고 EL (m)',p=>fmt(p.existing)],['계획고 EL (m)',p=>fmt(p.design)],['현황 - 계획 (m)',p=>fmt(p.existing-p.design)]];
+  p.R(x,y,w,120);p.L(x+first,y,x+first,y+120);rows.forEach(([label,fn],j)=>{if(j)p.L(x,y+j*30,x+w,y+j*30);p.T(x+7,y+20+j*30,label,10);sample.forEach((v,i)=>{if(!j&&i)p.L(x+first+i*cw,y,x+first+i*cw,y+120,'#bbb',.4);p.T(x+first+(i+.5)*cw,y+20+j*30,fn(v),9,'#111',false,'center');});});
+  p.L(120,452,172,452,'#222',1.5);p.T(185,456,'현황고',11);p.L(300,452,352,452,'#222',1.5,[6,3]);p.T(365,456,'계획고',11);p.R(520,444,24,12,'#d6d6d6');p.T(555,456,'절토',11);p.R(650,444,24,12,'#f2f2f2');p.T(685,456,'성토',11);
+  p.T(100,657,'표시는 최대 13개 대표 점. 전체 측점·단면 적분 및 수량은 엑셀 산출서를 참조하세요.',10);
+  p.T(100,682,kind==='cross'?'단면 절토 '+fmt(m.stations[index].cut)+'㎡ / 성토 '+fmt(m.stations[index].fill)+'㎡':'절토·성토량은 종단 고저차가 아닌 전체 횡단면으로 산정합니다.',11);
+ }else {p.R(100,600,24,12,'#d6d6d6');p.T(137,611,'절토',11);p.R(220,600,24,12,'#f2f2f2');p.T(257,611,'성토',11);Sheet.table(s,100,635,1060,[['측점 수 / 단면 폭',m.stations.length+'개 / '+fmt(m.offsets.at(-1)-m.offsets[0])+'m'],['절토 / 성토',fmt(m.cut)+' / '+fmt(m.fill)+' ㎥'],['기준선 / 좌표','직선 지역 좌표 / 누가거리 증가 방향']]);}
+ return s;
+}
+const svg=s=>Sheet.svg(s),canvas=(c,s,b)=>Sheet.canvas(c,s,b);
 function dxf(m){
  let out='0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n9\n$INSUNITS\n70\n6\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n';
  const poly=(layer,points,closed=false)=>{out+='0\nLWPOLYLINE\n100\nAcDbEntity\n8\n'+layer+'\n100\nAcDbPolyline\n90\n'+points.length+'\n70\n'+(closed?1:0)+'\n'+points.map(([x,y])=>'10\n'+x+'\n20\n'+y+'\n').join('');};
@@ -48,7 +64,7 @@ function dxf(m){
  for(const p of s.pieces)poly(p.cut>0?'CUT':'FILL',[[x+p.p.offset-lo,y+p.p.existing-datum],[x+p.q.offset-lo,y+p.q.existing-datum],[x+p.q.offset-lo,y+p.q.design-datum],[x+p.p.offset-lo,y+p.p.design-datum]],true);
  note(x,y-2,'CROSS STA '+s.station+' / DATUM '+datum+' / CUT '+s.cut.toFixed(3)+' / FILL '+s.fill.toFixed(3));});
  note(0,hi+6,'INPUT-BASED REVIEW ONLY. SOURCE, FACTORS AND QUANTITIES: SEE WORKBOOK/PDF.');
- return out+'0\nENDSEC\n0\nEOF\n';
+ const sheets=[scene('plan',m),scene('long',m),...m.stations.map((_,i)=>scene('cross',m,i))];return Sheet.appendCad(out+'0\nENDSEC\n0\nEOF\n',sheets,len+width+60,.08);
 }
 const api={scene,svg,canvas,dxf};if(typeof module!=='undefined')module.exports=api;else root.EarthDraw=api;
 })(typeof window==='undefined'?globalThis:window);

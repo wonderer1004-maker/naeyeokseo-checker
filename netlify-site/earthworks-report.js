@@ -4,9 +4,8 @@ function wrap(c,text,x,y,width,height,max=3){let line='',n=0;for(const ch of Str
 function pages(m,makeCanvas){
  const out=[];function page(title){const c=makeCanvas(2380,1684),x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,2380,1684);x.fillStyle='#183153';x.fillRect(0,0,2380,145);x.fillStyle='#fff';x.font='bold 42px "Malgun Gothic",sans-serif';x.fillText(title,80,86);x.fillStyle='#183153';x.font='bold 27px "Malgun Gothic",sans-serif';x.fillText(m.title.slice(0,75),80,198);x.font='23px "Malgun Gothic",sans-serif';wrap(x,'자료: '+m.source+' / 측량 기준일: '+m.surveyDate,80,243,2210,30,2);x.font='20px "Malgun Gothic",sans-serif';x.fillStyle='#64748b';x.fillText('입력 측점 기반 근사 검토 · 실측/설계 성과를 대신하지 않음 · '+(out.length+1)+'쪽',80,1633);return {c,x};}
  function save(c){const raw=atob(c.toDataURL('image/jpeg',.94).split(',')[1]);out.push({width:c.width,height:c.height,jpeg:Uint8Array.from(raw,ch=>ch.charCodeAt(0))});}
- let p=page('평면도 · 종횡단 및 토공 검토');G.canvas(p.x,G.scene('plan',m),{x:80,y:315,w:2220,h:1140});save(p.c);
- p=page('종단면도 · 중심선 현황고 / 계획고');G.canvas(p.x,G.scene('long',m),{x:80,y:345,w:2220,h:900});p.x.font='26px "Malgun Gothic",sans-serif';wrap(p.x,'종단면은 중심선(offset 0)의 표고를 연결합니다. 토공량은 중심선 고저차만으로 계산하지 않고 전체 횡단면의 절·성토 면적을 각각 계산합니다.',90,1200,2160,42,3);wrap(p.x,'기준선은 직선 가정입니다. 곡선 선형·실제 필지·좌표계 변환은 반영하지 않습니다. 모든 현황고와 계획고는 같은 표고 기준이어야 합니다.',90,1390,2160,42,3);save(p.c);
- for(let i=0;i<m.stations.length;i+=2){p=page('횡단면도 · 현황 / 계획 / 절토 / 성토');for(let j=0;j<2&&i+j<m.stations.length;j++)G.canvas(p.x,G.scene('cross',m,i+j),{x:200,y:310+j*630,w:2100,h:610});save(p.c);}
+ function drawing(kind,index=0){const c=makeCanvas(2380,1684);G.canvas(c.getContext('2d'),G.scene(kind,m,index),{x:0,y:0,w:2380,h:1684});save(c);}
+ drawing('plan');drawing('long');for(let i=0;i<m.stations.length;i++)drawing('cross',i);let p;
  for(let start=0;start<m.intervals.length;start+=20){
   p=page('토공 수량산출서 · 구간별 평균단면법');const c=p.x,cols=[90,390,720,1040,1380,1730,2030],heads=['시작→끝 STA','거리(m)','시작 절토㎡','끝 절토㎡','절토량㎥','성토량㎥','누적 절토㎥'];
   c.fillStyle='#183153';c.fillRect(70,300,2240,64);c.fillStyle='#fff';c.font='bold 22px "Malgun Gothic",sans-serif';heads.forEach((v,i)=>c.fillText(v,cols[i],342));

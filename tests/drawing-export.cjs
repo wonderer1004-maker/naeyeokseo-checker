@@ -24,6 +24,7 @@ async function main(){
       dir=await fs.mkdtemp(path.join(os.tmpdir(),'solar-roundtrip-'));const dwg=path.join(dir,'layout.dwg'),json=path.join(dir,'layout.json');await fs.writeFile(dwg,result);
       const reader=process.env.DWGREAD_PATH||path.resolve('.tools/libredwg/dwgread.exe');await run(reader,['-O','JSON','-o',json,dwg],{windowsHide:true});
       const data=JSON.parse(await fs.readFile(json,'utf8'));const entities=data.OBJECTS.filter(o=>o.entity==='LWPOLYLINE');assert.equal(entities.length,326);
+      const layerNames=data.OBJECTS.filter(o=>o.object==='LAYER').map(o=>o.name);assert.ok(layerNames.includes('SOLAR_MODULE'));assert.ok(layerNames.includes('SHEET_EA_000'));
       const exported=entities.flatMap(o=>o.points||[]);assert.ok(exported.length>0);assert.ok(entities.every(o=>o.points.length===4));
       console.log('PASS: native DWG round-trip, 326 closed geometry polylines, AC1015 signature');
     }else{console.log('SKIP: native DWG round-trip (converter not installed)');}
