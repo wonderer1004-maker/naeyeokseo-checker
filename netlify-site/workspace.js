@@ -5,7 +5,7 @@ const sheets={
  module:{label:'모듈 설치',title:'모듈 한 장부터, 전체 발전소 배치까지.',description:'배치 조건과 설치 물량을 정리하고 스트링 평면도와 공사 내역을 확인합니다.',file:'pv-works.html',key:'pv',mode:'module'},
  electric:{label:'전기공사',title:'전기의 흐름을 그리고, 자재를 산출하세요.',description:'스트링·인버터 조건에서 배선 경로와 단선 구성도, 전기 자재 수량을 검토합니다.',file:'pv-works.html',key:'pv',mode:'electric'},
  structure:{label:'구조물공사',title:'가대와 기초를, 도면과 수량으로 연결하세요.',description:'부재·지주·기초 조건을 정리해 구조물 배치도와 자재 내역을 확인합니다.',file:'pv-works.html',key:'pv',mode:'structure'},
- review:{label:'내역서 검토',title:'흩어진 내역을, 명확한 숫자로.',description:'엑셀 내역서를 불러와 공종별 금액과 수량·단가 오류를 한눈에 검토합니다.',file:'index.html',key:'review'}
+ review:{label:'내역서 검토',title:'흩어진 내역을, 명확한 숫자로.',description:'설계 내역서·수량산출서의 원본 셀, 규격별 수량과 단가·금액을 대조합니다.',file:'index.html',key:'review'}
 };
 const order=Object.keys(sheets),frames=new Map(),tabs=[...document.querySelectorAll('[data-sheet]')];let current='';
 function route(){const value=location.hash.slice(1).split('/')[0];return Object.hasOwn(sheets,value)?value:'site';}

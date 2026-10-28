@@ -1,14 +1,15 @@
 {
   "name": "naeyeokseo-checker",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "private": true,
   "scripts": {
     "start": "node cad-server.cjs",
-    "test": "node tests/check.cjs && node tests/drawing-export.cjs && node tests/estimate-core.cjs && node tests/earthworks.cjs && node tests/pv-works.cjs && node tests/workspace.cjs",
+    "test": "node tests/check.cjs && node tests/drawing-export.cjs && node tests/estimate-core.cjs && node tests/earthworks.cjs && node tests/pv-works.cjs && node tests/workspace.cjs && node tests/design-import.cjs",
     "test:report": "node tests/field-evidence.cjs",
     "test:earthwork-report": "node tests/earthworks.cjs --artifacts",
     "test:pv-report": "node tests/pv-works.cjs --artifacts",
-    "test:workspace": "node tests/workspace.cjs"
+    "test:workspace": "node tests/workspace.cjs",
+    "test:design-import": "node tests/design-import.cjs"
   },
   "devDependencies": {
     "@napi-rs/canvas": "0.1.100"

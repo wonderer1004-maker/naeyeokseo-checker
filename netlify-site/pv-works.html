@@ -6,6 +6,7 @@
 <nav><a href="jibun-estimate.html">부지 검토</a><a href="earthworks.html">종횡단·토공</a><a href="index.html">내역서 검토</a></nav>
 <header><h1>모듈 설치 · 전기공사 · 구조물공사</h1><p>배치·스트링·배선·가대·기초에서 도면과 수량, 내역서를 연결합니다.</p></header>
 <section class="card"><h2>1. 프로젝트 및 설계 입력</h2><p class="alert">기본 수치와 치수는 가상 검토 입력입니다. 실제 기기자료·구조설계에 맞춰 수정하세요. 전선·차단기 규격, 보호협조와 구조 안전성은 자동 설계하지 않습니다.</p>
+<p class="note">현재 자동 도면·물량은 지상형 연속 가대와 콘크리트 독립기초 모델입니다. 지붕 접합·스파이럴기초는 설계 내역 검토 시트에서 원본 수량을 확인하세요. 모듈·인버터 사양과 개정번호가 다른 문서의 수치를 혼합하지 마세요.</p>
 <div class="row"><label>현장명<input id="title" maxlength="100"></label><label>기기·구조·도면 자료 출처<input id="source" maxlength="200" placeholder="모듈/인버터 데이터시트, 구조도 번호·기준일"></label></div>
 <button id="example" class="secondary">가상 단가 포함 예제</button><label>기존 부지·PV·토공 프로젝트 JSON 불러오기<input id="import" type="file" accept=".json,application/json"></label><p class="note">부지 프로젝트는 배치 조건만 변환하며 전기·구조 조건과 단가는 새로 확인해야 합니다. 사진은 원래 부지 프로젝트 보고서에서 관리합니다.</p>
 <div id="fields"></div>

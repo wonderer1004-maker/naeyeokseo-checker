@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>내역서 물량산출 자동화</title>
 <script src="estimate-core.js"></script>
+<script src="design-import.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
@@ -114,33 +115,33 @@ thead{background:#edf3f9}thead th{position:sticky;top:0;background:#edf3f9}td{fo
 
   <div class="card">
     <div class="dropzone" id="dropzone">
-      <p>내역서 엑셀 파일(.xlsx)을 여기로 끌어다 놓거나 클릭해서 선택하세요</p>
-      <input type="file" id="fileInput" accept=".xlsx" />
+      <p>설계 내역서·수량산출서(.xls, .xlsx)를 여기로 끌어다 놓거나 클릭해서 선택하세요</p>
+      <input type="file" id="fileInput" accept=".xls,.xlsx" />
     </div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px">
       <label>검토 시트 <select id="sheetSelect" aria-label="검토 시트" disabled></select></label>
       <label>행 금액 원단위 처리 <select id="roundingMode" aria-label="행 금액 원단위 처리"><option value="round">원단위 반올림</option><option value="floor">원단위 버림 (양수)</option></select></label>
     </div>
     <p class="info" id="sheetNotice">금액·단가 합계·누락·음수·중복 가능 항목을 검토합니다. 합계/소계 행은 상세 항목 합산에서 제외해 별도 기록합니다.</p>
-    <p class="config-note">컬럼 구조: 공종 / 품명 / 규격 / 단위 / 수량 / 재료비단가 / 노무비단가 / 경비단가 / 합계단가 / 금액</p>
+    <p class="note">설계 내역서의 2단 머리글과 회로별 가로 수량산출표를 지원합니다. 원본 셀·수량 집계를 대조하며 계산식 텍스트를 실행하지 않습니다. 서로 다른 개정본의 기기 규격은 별도로 확인하세요.</p><p class="config-note">컬럼 구조: 공종 / 품명 / 규격 / 단위 / 수량 / 재료비단가 / 노무비단가 / 경비단가 / 합계단가 / 금액</p>
   </div>
 
   <div id="result" style="display:none;">
     <div class="metrics">
       <div class="metric"><div class="label">전체 항목 수</div><div class="value" id="mTotal">-</div></div>
-      <div class="metric"><div class="label">오류 항목 수</div><div class="value" id="mError">-</div></div>
-      <div class="metric"><div class="label">총 금액</div><div class="value" id="mAmount">-</div></div>
+      <div class="metric"><div class="label" id="errorMetricLabel">오류 항목 수</div><div class="value" id="mError">-</div></div>
+      <div class="metric"><div class="label" id="amountMetricLabel">총 금액</div><div class="value" id="mAmount">-</div></div>
     </div>
 
     <div id="warnBox"></div>
 
     <div class="card">
-      <h2>공종별 집계</h2>
+      <h2 id="reviewSummaryTitle">공종별 집계</h2>
       <div class="table-scroll"><table id="summaryTable"></table></div>
     </div>
 
     <div class="card">
-      <h2>전체 항목 검토</h2>
+      <h2 id="reviewDetailTitle">전체 항목 검토</h2>
       <div class="table-scroll"><table id="detailTable"></table></div>
     </div>
 
@@ -180,6 +181,7 @@ let lastExcluded = [];
 let currentWorkbook = null;
 let sourceSheet = '';
 let formulaCount = 0;
+let designParsed=null,designExcluded=[];
 document.getElementById('sheetSelect').addEventListener('change',()=>{try{loadSelectedSheet();}catch(e){lastRows=null;lastSummary=null;resultEl.style.display='none';showError(e.message);}});
 document.getElementById('roundingMode').addEventListener('change',()=>{if(currentWorkbook)try{loadSelectedSheet();}catch(e){lastRows=null;resultEl.style.display='none';showError(e.message);}});
 function loadSelectedSheet(){
@@ -188,8 +190,8 @@ function loadSelectedSheet(){
   const sheet=currentWorkbook.Sheets[sourceSheet];
   formulaCount=Object.values(sheet).filter(c=>c&&typeof c==='object'&&c.f).length;
   for(const cell of Object.values(sheet))if(cell&&typeof cell==='object'&&cell.f&&(cell.v===undefined||cell.v===null))throw new Error('계산값이 없는 수식 셀이 있습니다. Excel에서 재계산 후 저장하고 다시 업로드하세요.');
-  const rows=XLSX.utils.sheet_to_json(sheet,{defval:null});
-  processRows(rows);
+  designParsed=DesignImport.parse(sheet,XLSX,sourceSheet);designExcluded=designParsed.excluded;
+  if(designParsed.kind==='quantity')renderDesignQuantities(designParsed);else processRows(designParsed.rows);
 }
 
 function handleFile(file) {
@@ -197,7 +199,7 @@ function handleFile(file) {
   resultEl.style.display = 'none';
   lastRows=null;lastSummary=null;lastExcluded=[];currentWorkbook=null;
   document.getElementById('sheetSelect').disabled=true;
-  if(!/\.xlsx$/i.test(file.name)||file.size>20*1024*1024){showError('20MB 이하 XLSX 파일을 선택하세요.');return;}
+  if(!/\.xlsx?$/i.test(file.name)||file.size>20*1024*1024){showError('20MB 이하 XLS 또는 XLSX 파일을 선택하세요.');return;}
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
@@ -206,7 +208,7 @@ function handleFile(file) {
       currentWorkbook = XLSX.read(data, { type: 'array', cellFormula:true });
       const selector=document.getElementById('sheetSelect');selector.replaceChildren();
       for(const name of currentWorkbook.SheetNames){const option=document.createElement('option');option.value=name;option.textContent=name;selector.append(option);}
-      selector.disabled=false;selector.value=currentWorkbook.SheetNames[0];loadSelectedSheet();
+      selector.disabled=false;selector.value=currentWorkbook.SheetNames.find(n=>/공종별내역서|공종내역/.test(n))||currentWorkbook.SheetNames.find(n=>/수량|모듈.*설치/.test(n)&&!/미사용|산출않됨/.test(n))||currentWorkbook.SheetNames[0];loadSelectedSheet();
     } catch (err) {
       showError('파일 처리 중 오류가 발생했습니다: ' + err.message);
     }
@@ -221,7 +223,7 @@ function showError(msg) {
 function processRows(rawRows) {
   lastRows=null;lastSummary=null;lastExcluded=[];resultEl.style.display='none';
   const audit=EstimateCore.audit(rawRows,document.getElementById('roundingMode').value||'round');
-  const rows=audit.rows;lastExcluded=audit.excluded;
+  const rows=audit.rows;lastExcluded=[...designExcluded,...audit.excluded];
   const byGongjong = Object.create(null);
   rows.forEach(r => {
     const gongjong = r['공종'] || '(미지정)';
@@ -243,11 +245,29 @@ function processRows(rawRows) {
   renderResult(rows, summary, totalAmount);
 }
 
+function renderDesignQuantities(parsed){
+ const rows=parsed.rows,summary=parsed.summary;
+ lastRows=rows;lastSummary=summary;lastExcluded=parsed.excluded;
+ document.getElementById('mTotal').textContent=fmt(rows.length)+'행';
+ document.getElementById('mError').textContent=fmt(rows.filter(r=>r.오류여부).length+summary.filter(r=>r.검토상태!=='일치').length)+'건';
+ document.getElementById('mAmount').textContent=fmt(summary.length)+'종 (금액 미산정)';
+ document.getElementById('amountMetricLabel').textContent='자재·규격 구분';document.getElementById('errorMetricLabel').textContent='수량 검토 필요';
+ document.getElementById('reviewSummaryTitle').textContent='원본 집계와 상세 수량 대조';
+ document.getElementById('reviewDetailTitle').textContent='회로·자재별 상세 수량';
+ document.getElementById('warnBox').textContent=parsed.notice+' 수식 '+formulaCount+'개는 Excel 저장 캐시를 사용합니다. 미산출·미사용 표기 시트의 범위는 원본에서 확인하세요.';
+ document.getElementById('warnBox').className=rows.some(r=>r.오류여부)||summary.some(r=>r.검토상태!=='일치')?'warn':'info';
+ document.getElementById('sheetNotice').textContent='선택 시트: '+sourceSheet+' / 머리글 '+parsed.headerRow+'행 / 수량산출서 검토';
+ document.getElementById('summaryTable').innerHTML=buildTable(summary,['품명','규격','단위','원본집계셀','원본집계수량','원본집계수식','상세합계','차이','검토상태']);
+ document.getElementById('detailTable').innerHTML=buildTable(rows,['원본행','원본셀','공종','FROM','TO','품명','규격','단위','수량','산출근거','검토사유'],true);
+ resultEl.style.display='block';
+}
+
 function fmt(n) {
   return Number(n).toLocaleString('ko-KR', { maximumFractionDigits: 3 });
 }
 
 function renderResult(rows, summary, totalAmount) {
+  document.getElementById('amountMetricLabel').textContent='총 금액';document.getElementById('errorMetricLabel').textContent='오류 항목 수';document.getElementById('reviewSummaryTitle').textContent='공종별 집계';document.getElementById('reviewDetailTitle').textContent='전체 항목 검토';
   const errorCount = rows.filter(r => r['오류여부']).length;
 
   document.getElementById('mTotal').textContent = fmt(rows.length) + '개';
@@ -294,10 +314,10 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
   const wb = XLSX.utils.book_new();
   const wsSummary = XLSX.utils.json_to_sheet(lastSummary);
   const wsDetail = XLSX.utils.json_to_sheet(lastRows);
-  XLSX.utils.book_append_sheet(wb, wsSummary, '공종별집계');
+  XLSX.utils.book_append_sheet(wb, wsSummary, designParsed?.kind==='quantity'?'수량집계대조':'공종별집계');
   XLSX.utils.book_append_sheet(wb, wsDetail, '전체검토');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(lastExcluded.length?lastExcluded:[{안내:'제외한 집계행 없음'}]),'제외집계행');
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet([{시트:sourceSheet,원단위처리:document.getElementById('roundingMode').value,수식캐시검토:formulaCount,기준:'상세 행 금액만 합산, 누락은 0으로 확정하지 않음. 단가 적정성·물량 실측은 별도.'}]),'검토기준');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet([{시트:sourceSheet,원단위처리:document.getElementById('roundingMode').value,수식캐시검토:formulaCount,기준:designParsed?.notice||'상세 행 금액만 합산, 누락은 0으로 확정하지 않음. 단가 적정성·물량 실측은 별도.'}]),'검토기준');
   XLSX.writeFile(wb, '검토결과_리포트.xlsx');
 });
 </script>
