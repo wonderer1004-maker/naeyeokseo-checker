@@ -11,9 +11,12 @@ function load(page,defaults={}) {
 }
 const inputs={area:3000,slope:8,landuse:1,usableRatio:.6,depth:.4,wall:150,reserve:10,c_civil_site:45000,c_civil_wall:350000,c_elec_main:150000,c_elec_wire:80000,c_solar_module:950000,c_solar_bos:200000};
 Object.assign(inputs,{areaBasis:'horizontal',slopeUnit:'percent',siteCostBasis:'horizontal',earthworkMode:'included',c_earthwork:0,costSource:'',costDate:'',latitude:37.5,tilt:30,azimuth:180,moduleLength:2.3,moduleWidth:1.13,modulePower:550,clearance:.8,moduleGap:.02,shadowWindow:'day',performance:.8,irr0:'',irr1:'',irr2:'',irr3:''});
+inputs.longitude='';
 const p=load('jibun-estimate',inputs);p.run('calculate()');
 assert.ok(p.run('lastSnapshot.총액')>0); assert.ok(Math.abs(p.run('lastLayout.capacityKw')-p.run('lastLayout.count')*.55)<1e-8);assert.equal(p.get('mEarthwork').textContent,'1,200 ㎥');
 assert.equal(p.run('lastLayout.polygons.length'),p.run('lastLayout.count')+2);
+p.get('longitude').value='999';p.run('calculate()');assert.equal(p.run('lastRows'),null);
+p.get('longitude').value='';p.run('calculate()');assert.ok(p.run('lastRows'));
 assert.match(p.run('lastLayout.svg'),/북 N/); assert.ok(p.get('energySummary').textContent.includes('미입력'));
 p.get('irr0').value='3';p.get('irr1').value='5';p.get('irr2').value='3';p.get('irr3').value='2';p.run('calculate()');assert.ok(p.get('energySummary').textContent.includes('연간'));
 p.get('latitude').value='0';p.run('calculate()');assert.equal(p.run('lastRows'),null);p.get('latitude').value='37.5';

@@ -59,6 +59,8 @@
       }
       photos.splice(0,photos.length,...checked);$('projectTitle').value=String(p.project||'').slice(0,100);$('address').value=String(p.address||'').slice(0,300);
       for(const id of inputIds)if(id in p.inputs)$(id).value=String(p.inputs[id]);
+      if($('longitude')&&!('longitude' in p.inputs))$('longitude').value='';
+      if(window.TerrainMap)window.TerrainMap.restore();
 for(const [id,value]of Object.entries({areaBasis:'horizontal',slopeUnit:'percent',siteCostBasis:'horizontal',earthworkMode:'included',c_earthwork:'0'}))if(!(id in p.inputs))$(id).value=value;
 $('costSource').value=String(p.costSource||'').slice(0,160);$('costDate').value=/^\d{4}-\d{2}-\d{2}$/.test(p.costDate||'')?p.costDate:'';
       render();calculate();status('프로젝트와 사진을 불러왔습니다. 입력값과 계산 결과를 확인하세요.');

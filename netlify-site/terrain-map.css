@@ -1,0 +1,8 @@
+.terrain-panel{margin:18px 0 22px;padding:18px;border:1px solid var(--border);border-radius:14px;background:var(--bg)}
+.terrain-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.terrain-heading h3{margin:0;font-size:1rem}.terrain-heading select{width:auto;min-width:125px}
+#terrainMap{height:410px;width:100%;border:1px solid var(--border);border-radius:10px;background:#e8edf0;isolation:isolate;z-index:0;font-family:inherit}
+#terrainMap .leaflet-control-attribution{font-size:10px;max-width:90%;line-height:1.3}#terrainMap .leaflet-control-attribution a{color:#1d4ed8}
+#terrainMap .leaflet-control-scale-line{background:#ffffffd9;color:#172b3a}#terrainMap .leaflet-pane svg{aspect-ratio:auto;border:0;background:transparent;width:auto;height:auto}
+.terrain-panel .btn{margin-top:10px}.terrain-note{line-height:1.65}#mapStatus{min-height:1.5em;line-height:1.5;margin:10px 0 0;font-size:.85rem;color:var(--muted)}
+@media(max-width:600px){.terrain-panel{padding:12px}#terrainMap{height:310px}.terrain-heading{align-items:flex-start}}
+@media print{.terrain-panel{display:none!important}}

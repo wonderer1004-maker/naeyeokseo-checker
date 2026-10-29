@@ -145,3 +145,15 @@ Settings → Pages → Deploy from a branch → `main` / `docs` → Save.
 - DXF는 레이어·선종류·문자 스타일·모델/도면 공간 블록 정의와 고유 객체 식별자를 포함합니다. 선종류와 레이어 필드는 Autodesk DXF의 [LAYER](https://help.autodesk.com/cloudhelp/2020/ENU/AutoCAD-DXF/files/GUID-D94802B0-8BE8-4AC9-8054-17197688AFDB.htm), [BLOCK_RECORD](https://help.autodesk.com/cloudhelp/2023/ENU/AutoCAD-DXF/files/GUID-A1FD1934-7EF5-4D35-A4B0-F8AE54A9A20A.htm) 정의를 참조했습니다.
 - 웹은 DXF/PDF, 기존 로컬 CAD 서버는 실제 DWG를 제공합니다. 실제 지형·필지·현장 도면 형상을 자동 복원하거나 인허가/실시설계 승인 도면으로 전환한 것은 아닙니다.
 - 검증: node tests/drawing-style.cjs. --artifacts 옵션은 가상 입력의 도면 9종 PDF 견본과 렌더링 이미지를 만들고 PV/토공 보고서의 전체 도면 페이지 구성을 검사합니다.
+# v1.8.0 · 부지 지형지도 연결
+
+부지 검토의 입력 조건 화면에서 지형도(OpenTopoMap)와 위성사진(Esri)을 표시합니다. 주소 조회 성공 시 지도 중심과 위치 표식, 태양광 계산 위도가 자동 변경됩니다. 지번·도로명 구분을 지원하며 브이월드 키가 없으면 지도 클릭 또는 WGS84 위·경도 직접 입력으로 사용할 수 있습니다.
+
+- 주소 검색: 브이월드 API 키의 허용 URL에 `https://wonderer1004-maker.github.io` 등록 후 화면에 입력합니다. 주소는 조회 시 브이월드로 전송되며 키는 저장 파일이나 localStorage에 보관하지 않습니다.
+- 프로젝트 JSON에 위·경도와 배경도 선택을 저장하고 불러올 때 지도 위치를 복원합니다. 경도가 없는 이전 프로젝트는 현재 위치 표식을 지우고 전국 보기로 돌아갑니다.
+- 지도는 주변 지형 확인용입니다. 지적경계, 정밀 표고, 경사도, DEM, 종횡단 측량점 및 토공 수량을 자동 생성하지 않습니다. 배경지도는 PDF/DWG에 포함하지 않습니다.
+- 지도 전환과 위치 지정, 잘못된 좌표, 검색 실패·시간 초과, 오래된 응답 무시 및 프로젝트 복원을 `tests/terrain-map.cjs`로 검증합니다. API 키를 사용하는 실주소 조회는 배포 도메인에 등록된 사용자 키로 확인해야 합니다.
+- 외부 지도 제공 정책과 이용량은 상용화 전에 검토하세요. 타일은 브라우저에서 현재 화면에 필요한 범위만 요청하며 출처를 표시합니다. 지도 라이브러리는 Leaflet 1.9.4를 SRI 검증하여 불러옵니다.
+
+기술 자료: [Leaflet](https://leafletjs.com/examples/quick-start/), [OpenTopoMap 이용 안내](https://www.opentopomap.org/about), [브이월드](https://www.vworld.kr/), [Esri 배경지도 출처 안내](https://support.esri.com/en-us/knowledge-base/what-is-the-correct-way-to-cite-an-arcgis-online-basema-000012040).
+

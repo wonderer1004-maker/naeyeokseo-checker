@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>지번 기반 개략공사비 산출</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="terrain-map.css?v=1.8.0">
 <script src="engineering-sheet.js?v=1.7.0"></script>
 <script src="estimate-core.js"></script>
 <script src="drawing-graphics.js?v=1.7.0"></script>
@@ -82,20 +84,29 @@ body{background:radial-gradient(at 0% 0%,#e8eef7 0,transparent 52%),var(--bg)}.c
   <div class="card">
     <h2>1. 부지 정보</h2>
 
-    <label>지번 주소 (선택 — 좌표 참고용 베타 조회)</label>
+    <label for="address">부지 주소 · 조회하면 지도로 자동 연결</label>
     <input type="text" id="address" placeholder="예: 경기도 OO시 OO면 123-4" />
     <div class="row">
       <div>
-        <button class="btn secondary" id="geocodeBtn" type="button">좌표 조회(베타)</button>
+        <label for="addressType">주소 구분</label><select id="addressType"><option value="PARCEL">지번 주소</option><option value="ROAD">도로명 주소</option></select>
       </div>
+      <div><button class="btn secondary" id="geocodeBtn" type="button">주소 조회 · 지도 연결</button></div>
     </div>
-    <div class="coord-box" id="coordResult"></div>
-    <details>
-      <summary>브이월드 API 키 설정 (좌표 조회에만 사용, 현재 화면에서만 사용)</summary>
+    <div class="coord-box" id="coordResult" role="status" aria-live="polite"></div>
+    <details id="vworldSettings">
+      <summary>주소 검색용 브이월드 API 키 설정</summary>
       <label>VWorld API 키</label>
       <input type="password" id="vworldKey" autocomplete="off" placeholder="발급받은 API 키 입력" />
-      <p class="note">무료 발급: www.vworld.kr → 오픈API 신청. 용도지역·지목 자동조회는 추가 연동이 필요해 이번 버전은 좌표만 참고용으로 제공합니다. 정확한 면적·용도지역은 아래에 직접 입력해주세요.</p>
+      <p class="note">브이월드에서 API 키를 발급받고 허용 URL에 https://wonderer1004-maker.github.io 를 등록하세요. 키는 현재 화면에서만 사용하며 프로젝트 파일에 저장하지 않습니다. 입력한 주소는 조회 시 브이월드로 전송됩니다. <a href="https://www.vworld.kr/" target="_blank" rel="noopener">브이월드에서 발급하기 ↗</a></p>
     </details>
+    <section class="terrain-panel" aria-labelledby="terrainTitle">
+      <div class="terrain-heading"><h3 id="terrainTitle">부지 지형지도</h3><select id="mapLayer" aria-label="지도 배경 선택"><option value="topo">지형 배경도</option><option value="satellite">위성사진</option></select></div>
+      <div id="terrainMap" aria-label="부지 위치 지도"></div>
+      <p id="mapStatus" role="status" aria-live="polite">지도를 연결하고 있습니다…</p>
+      <div class="row"><div><label for="latitude">위도 (°N · 태양광 계산에 반영)</label><input id="latitude" type="number" value="37.5" min="20" max="50" step="0.000001"></div><div><label for="longitude">경도 (°E)</label><input id="longitude" type="number" min="110" max="150" step="0.000001" placeholder="예: 127.123456"></div></div>
+      <button class="btn secondary" id="moveMapBtn" type="button">입력 좌표로 지도 이동</button>
+      <p class="note terrain-note">주소 조회 후 자동 이동합니다. 키 없이 지도를 클릭하거나 좌표를 입력해도 위치를 지정할 수 있습니다. 지형도는 OpenTopoMap, 위성사진은 Esri에서 불러옵니다. 지적 경계·면적·표고·경사도는 자동 산출하지 않으며, 수량과 종횡단은 측량 자료를 별도로 입력하세요.</p>
+    </section>
 
     <div class="row">
       <div>
@@ -138,7 +149,7 @@ body{background:radial-gradient(at 0% 0%,#e8eef7 0,transparent 52%),var(--bg)}.c
     <p class="note">현재는 수동 입력 기반입니다. 1:1000 지형도·필지경계·DEM 분석은 연결되지 않았습니다. 경사도만으로 토공량을 확정할 수 없어 평균 깊이를 별도로 입력합니다. 기본 단가는 검증된 시세가 아닌 편집 가능한 예시입니다.</p>
     <h2 style="margin-top:24px">모듈 방향 · 태양 조건</h2>
     <div class="row">
-      <div><label for="latitude">위도 (°N)</label><input id="latitude" type="number" value="37.5" min="20" max="50" step="0.01"></div>
+      <div><label>계산 위치</label><p class="note">상단 지도에서 선택한 위도를 사용합니다.</p></div>
       <div><label for="tilt">모듈 경사각 (°)</label><input id="tilt" type="number" value="30" min="0" max="60"></div>
       <div><label for="azimuth">모듈 정면 방위각 (진북 0°, 동 90°, 남 180°, 서 270°)</label><input id="azimuth" type="number" value="180" min="90" max="270"></div>
     </div>
@@ -226,46 +237,6 @@ const coordResult = document.getElementById('coordResult');
 
 try { localStorage.removeItem('vworldKey'); } catch (e) {}
 
-document.getElementById('geocodeBtn').addEventListener('click', () => {
-  const key = vworldKeyInput.value.trim();
-  const address = addressInput.value.trim();
-  if (!key) {
-    coordResult.innerHTML = '<span style="color:var(--error-text)">API 키를 먼저 입력해주세요.</span>';
-    return;
-  }
-  if (!address) {
-    coordResult.innerHTML = '<span style="color:var(--error-text)">지번 주소를 입력해주세요.</span>';
-    return;
-  }
-
-
-  coordResult.textContent = '조회 중...';
-
-  const callbackName = 'vworldCallback_' + Date.now();
-  window[callbackName] = function (res) {
-    try {
-      const point = res.response.result.point;
-      const lat = Number(point.y);
-      if(Number.isFinite(lat)&&lat>=20&&lat<=50){document.getElementById('latitude').value=lat.toFixed(5);lastRows=null;document.getElementById('result').style.display='none';}
-      coordResult.textContent = '좌표 조회 결과: X ' + point.x + ' / Y ' + point.y + ' (면적·용도지역·경사도는 별도 확인 필요)';
-    } catch (e) {
-      coordResult.innerHTML = '<span style="color:var(--error-text)">좌표를 찾을 수 없습니다. 지번 표기를 확인해주세요.</span>';
-    }
-    cleanup();
-  };
-
-  const script = document.createElement('script');
-  const params = new URLSearchParams({
-    service: 'address', request: 'getcoord', address: address,
-    type: 'PARCEL', key: key, callback: callbackName, crs: 'epsg:4326'
-  });
-  script.src = 'https://api.vworld.kr/req/address?' + params.toString();
-  const timeout = setTimeout(() => {coordResult.textContent = '조회 시간이 초과되었습니다. 키와 허용 도메인을 확인해주세요.'; cleanup();}, 15000);
-  function cleanup() {clearTimeout(timeout); delete window[callbackName]; script.remove();}
-  script.onerror = () => {coordResult.textContent = '조회 실패. API 키 또는 네트워크를 확인해주세요.'; cleanup();};
-  document.body.appendChild(script);
-});
-
 function getInputs() {
   return {
     area: Number(document.getElementById('area').value) || 0,
@@ -295,7 +266,7 @@ function calculate() {
   const wallArea = Number(document.getElementById('wall').value);
   const reserve = Number(document.getElementById('reserve').value);
   const values = [...document.querySelectorAll('input[type=number]')];
-  const invalid = values.some(el => (el.value.trim() === '' && !el.classList.contains('irradiance')) || !Number.isFinite(Number(el.value)) || Number(el.value)<0);
+  const invalid = values.some(el => el.id==='longitude' ? (el.value.trim()!==''&&(!Number.isFinite(Number(el.value))||Number(el.value)<110||Number(el.value)>150)) : (el.value.trim() === '' && !el.classList.contains('irradiance')) || !Number.isFinite(Number(el.value)) || Number(el.value)<0);
   const error = document.getElementById('inputError');
   if (invalid || area<=0 || usableRatio<=0 || usableRatio>1 || reserve>100) {
     error.textContent='면적은 0보다 크게, 가용비율은 0 초과 1 이하로 입력하세요. 수량·단가는 음수가 될 수 없고 예비비는 0~100%입니다.';
@@ -335,11 +306,11 @@ if(separate)rows.splice(1,0,R('토목','토공 취급량(개략)',earthworkM3,'�
 totals=EstimateCore.budget(rows,reserve);
 }catch(e){error.textContent=e.message;lastRows=null;document.getElementById('result').style.display='none';return;}
 lastRows=rows;
-lastSnapshot={지번:addressInput.value,면적:area,입력면적기준:terrain.areaBasis,경사입력단위:terrain.slopeUnit,수평면적:terrain.horizontal,사면적:terrain.surface,경사각:terrain.angle,경사율:terrain.percent,면적보정계수:terrain.factor,면적산정기준:areaText,부지조성수량기준:siteBasis,경사도:slope,용도지역:document.getElementById('landuse').selectedOptions[0].text,가용비율:usableRatio,가용수평면적:terrain.horizontal*usableRatio,평균토공깊이:depth,토공량:earthworkM3,옹벽면적:wallArea,예비비율:reserve,산출시각:new Date().toISOString(),단가출처:document.getElementById('costSource').value.trim()||'미검증 예시 단가 / 출처 미입력',단가기준일:document.getElementById('costDate').value||'미입력',지도분석:'미연동',토공비:separate?'별도: 수평면적 × 수직 두께 × 단가. 부지조성 단가의 토공비 제외 필요':'부지조성 단가에 포함하는 가정. 별도 중복 가산하지 않음',금액처리:'수량 소수 3자리·단가 소수 2자리 반올림 후 행 금액 원단위 반올림. 행 합계·예비비·VAT 동일 기준',제외비용:'토지매입·계통연계 추가공사·인허가 및 설계비·금융비용'};
+lastSnapshot={지번:addressInput.value,면적:area,입력면적기준:terrain.areaBasis,경사입력단위:terrain.slopeUnit,수평면적:terrain.horizontal,사면적:terrain.surface,경사각:terrain.angle,경사율:terrain.percent,면적보정계수:terrain.factor,면적산정기준:areaText,부지조성수량기준:siteBasis,경사도:slope,용도지역:document.getElementById('landuse').selectedOptions[0].text,가용비율:usableRatio,가용수평면적:terrain.horizontal*usableRatio,평균토공깊이:depth,토공량:earthworkM3,옹벽면적:wallArea,예비비율:reserve,산출시각:new Date().toISOString(),단가출처:document.getElementById('costSource').value.trim()||'미검증 예시 단가 / 출처 미입력',단가기준일:document.getElementById('costDate').value||'미입력',지도분석:'지형·위성 배경지도 연결 / DEM·지적경계 분석 미연동',토공비:separate?'별도: 수평면적 × 수직 두께 × 단가. 부지조성 단가의 토공비 제외 필요':'부지조성 단가에 포함하는 가정. 별도 중복 가산하지 않음',금액처리:'수량 소수 3자리·단가 소수 2자리 반올림 후 행 금액 원단위 반올림. 행 합계·예비비·VAT 동일 기준',제외비용:'토지매입·계통연계 추가공사·인허가 및 설계비·금융비용'};
 const {direct,contingency,vat}=totals,total=direct;
   document.getElementById('budgetSummary').textContent = '직접공사비 '+fmt(direct)+'원 + 예비비 '+fmt(contingency)+'원 + 부가세(10% 가정) '+fmt(vat)+'원 = 총 '+fmt(direct+contingency+vat)+'원';
   lastSnapshot.직접공사비=direct; lastSnapshot.예비비=contingency; lastSnapshot.부가세=vat; lastSnapshot.총액=direct+contingency+vat;
-  Object.assign(lastSnapshot,{위도:solar.latitude,모듈경사각:solar.tilt,모듈방위각:solar.azimuth,모듈길이:solar.length,모듈너비:solar.width,모듈출력W:solar.power,모듈수:lastLayout.count,설치용량kW:capacityKw,배치행수:lastLayout.occupiedRows,행간순간격m:lastLayout.gap,행피치m:lastLayout.pitch,음영검토태양시:solar.window==='noon'?'정오만':'09~15시 3분 간격',성능비:pr,일사량출처:'사용자 입력 POA / 자동 기상조회 미연동'});
+  Object.assign(lastSnapshot,{위도:solar.latitude,경도:document.getElementById('longitude').value||'미지정',좌표계:'WGS84 (EPSG:4326)',모듈경사각:solar.tilt,모듈방위각:solar.azimuth,모듈길이:solar.length,모듈너비:solar.width,모듈출력W:solar.power,모듈수:lastLayout.count,설치용량kW:capacityKw,배치행수:lastLayout.occupiedRows,행간순간격m:lastLayout.gap,행피치m:lastLayout.pitch,음영검토태양시:solar.window==='noon'?'정오만':'09~15시 3분 간격',성능비:pr,일사량출처:'사용자 입력 POA / 자동 기상조회 미연동'});
   document.getElementById('solarSummary').textContent = '모듈 '+fmt(lastLayout.count)+'장 · '+lastLayout.occupiedRows+'행 · '+fmt(capacityKw)+' kW / 높이차 '+lastLayout.height.toFixed(2)+'m · 모듈 수평폭 '+lastLayout.footprint.toFixed(2)+'m · 행간 순 간격 '+lastLayout.gap.toFixed(2)+'m · 행 피치 '+lastLayout.pitch.toFixed(2)+'m / 방위각 '+solar.azimuth+'° · 경사각 '+solar.tilt+'°';
   document.getElementById('seasonTable').innerHTML='<thead><tr><th>계절</th><th>남중고도</th><th>이론 낮 길이</th><th>남중 직달 입사계수</th><th>입력 POA</th><th>계절 발전량 가정</th></tr></thead><tbody>'+lastLayout.seasons.map(r=>{
     r.발전량kWh=r.일사량===null?null:capacityKw*r.일사량*r.일수*pr;
@@ -396,9 +367,11 @@ document.getElementById('dxfBtn').onclick=()=>{
   saveFile(d+'0\nENDSEC\n0\nEOF\n','concept-layout.dxf','application/dxf');
 };
 // 입력 변경 시 이전 결과를 숨겨 잘못된 보고서 다운로드 방지
-for(const el of document.querySelectorAll('input,select'))el.addEventListener('input',()=>{if(el.closest('#fieldEvidence'))return;if (el.id.startsWith('c_')) { calculate(); return; } lastRows=null;document.getElementById('result').style.display='none';});
+for(const el of document.querySelectorAll('input,select'))el.addEventListener('input',()=>{if(el.closest('#fieldEvidence')||el.id==='mapLayer'||el.id==='addressType')return;if (el.id.startsWith('c_')) { calculate(); return; } lastRows=null;document.getElementById('result').style.display='none';});
 </script>
-<script src="field-evidence.js?v=1.7.0"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="terrain-map.js?v=1.8.0"></script>
+<script src="field-evidence.js?v=1.8.0"></script>
 <script defer src="sheet-ui.js"></script>
 </body>
 </html>
