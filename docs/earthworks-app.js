@@ -2,7 +2,7 @@
 const $=id=>document.getElementById(id),F=n=>Number(n).toLocaleString('ko-KR',{maximumFractionDigits:3});
 let model=null,available=false,busy=false;
 const ids=['title','surveyDate','source','loose','compacted','reuse','rateCut','rateFill','rateHaul','rateBorrow','reserve','costSource'];
-function setBusy(value){busy=value;for(const el of document.querySelectorAll('input,textarea,select,button'))el.disabled=value;if(!value)$('dwg').disabled=!available;}
+function setBusy(value){busy=value;for(const el of document.querySelectorAll('input,textarea,select,button'))if(!el.closest?.('#terrainEarthwork'))el.disabled=value;if(!value)$('dwg').disabled=!available;}
 function status(text){$('status').textContent=text;}
 function invalidate(){model=null;$('result').hidden=true;$('error').textContent='';}
 function read(){const number=id=>{if(!$(id).value.trim())throw Error('빈 수치 입력: '+id);const n=Number($(id).value);if(!Number.isFinite(n))throw Error('수치 입력 오류: '+id);return n;};return {title:$('title').value,source:$('source').value,surveyDate:$('surveyDate').value,costSource:$('costSource').value,loose:number('loose'),compacted:number('compacted'),reuse:number('reuse'),reserve:number('reserve'),rates:{cut:number('rateCut'),fill:number('rateFill'),haul:number('rateHaul'),borrow:number('rateBorrow')}};}
