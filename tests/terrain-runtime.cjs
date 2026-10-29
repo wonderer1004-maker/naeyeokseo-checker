@@ -1,0 +1,12 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+function fixture(sample){const sent=[],parent={location:{origin:'https://example.test'},postMessage:(data,origin)=>sent.push({data,origin})},events={},intervals=[];const ws3d={viewer:{map:{terrain:{sampleTerrainByPointArray:sample}}},common:{OgcPoint:class{constructor(x,y,z){Object.assign(this,{x,y,z});}}}};const context={parent,location:{origin:'null'},document:{readyState:'complete',getElementById:()=>({textContent:JSON.stringify({point:[127,36],session:7})})},window:{ws3d},ws3d,vw:{Map:class{setOption(){}start(){}},CameraPosition:class{},CoordZ:class{},Direction:class{}},addEventListener:(k,f)=>events[k]=f,setInterval:f=>{intervals.push(f);return 1;},clearInterval(){},setTimeout,clearTimeout,Date,console};context.window.vw=context.vw;vm.runInNewContext(fs.readFileSync('docs/terrain-3d-runtime.js','utf8'),context);intervals[0]();return {sent,message:(points,origin=parent.location.origin,source=parent)=>events.message({origin,source,data:{channel:'fieldwork-terrain-host',type:'sample',token:42,points}})};}
+const tick=()=>new Promise(r=>setImmediate(r));
+(async()=>{
+ const calls=[],f=fixture(nodes=>{calls.push(nodes);return Promise.resolve(nodes.map(n=>100+n.x/100));});assert.equal(f.sent[0].data.type,'ready');assert.equal(f.sent[0].origin,'https://example.test');assert.equal(f.sent[0].data.session,7);
+ const pts=Array.from({length:260},(_,i)=>[127+i/1e5,36]);f.message(pts,'https://wrong.test');assert.equal(calls.length,0);f.message(pts);await tick();assert.equal(calls.length,3);assert.equal(calls[0].length,128);assert.equal(f.sent.at(-1).data.type,'sampled');assert.equal(f.sent.at(-1).data.heights.length,260);assert.equal(f.sent.at(-1).data.token,42);
+ const missing=fixture(()=>Promise.resolve([null]));missing.message([[127,36]]);await tick();assert.equal(missing.sent.at(-1).data.type,'sampleError');
+ const zeros=fixture(nodes=>Promise.resolve(nodes.map(()=>0)));zeros.message([[127,36]]);await tick();assert.match(zeros.sent.at(-1).data.message,/0m/);
+ const bad=fixture(()=>{throw Error('unexpected');});bad.message([[0,0]]);await tick();assert.match(bad.sent.at(-1).data.message,/좌표/);
+ console.log('PASS: inherited iframe origin, authenticated message source, batched real sampler contract, progress, missing-height and all-zero rejection');
+})().catch(e=>{console.error(e);process.exitCode=1;});
